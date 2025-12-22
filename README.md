@@ -1,0 +1,72 @@
+# `spacetest`
+
+![Coverage](https://img.shields.io/badge/Coverage-98.8%25-brightgreen)
+
+A small package to help with creating transient Linux namespaces in unit
+testing, without having to deal with the tedious details of proper and robust
+setup and teardown – and without destroying your host filesystem.
+
+`spacetest` leverages the [Ginkgo](https://github.com/onsi/ginkgo) testing
+framework with [Gomega](https://github.com/onsi/gomega) matchers.
+
+The origins of this module lie in
+[thediveo/notwork](https://github.com/thediveo/notwork): in order to reuse the
+namespace-specific elements without the need to pull in dependencies related
+solely to "notwork" testing, `spacetest` was born. And in the tradition of short
+and preably misleading idiomatic Go package names, the name `spacetest` was
+chosen. Because "namespacetest" would have been much too precise. We promise
+that our module won't explode in your face.
+
+## Example
+
+Creating and entering a transient network namespace for testing purposes become
+as easy and concise as:
+
+```go
+import (
+    "github.com/thediveo/spacetest/netns"
+
+    . "github.com/onsi/ginkgo/v2"
+    . "github.com/onsi/gomega"
+)
+
+var _ = Describe("...", func() {
+
+    It("tests something inside a transient network namespace", func() {
+        defer netns.EnterTransient()() // !!! double ()()
+        // ...
+    })
+
+})
+```
+
+Trust us, you don't want to repeat over and over again as well as seeing all the
+time the individual step sequence and many sanity checks inside
+`EnterTransient()`. There's a limit to inflicting full code complexity on
+developers, and good reason for appropriate abstractions.
+
+## DevContainer
+
+> [!CAUTION]
+>
+> Do **not** use VSCode's "~~Dev Containers: Clone Repository in Container
+> Volume~~" command, as it is utterly broken by design, ignoring
+> `.devcontainer/devcontainer.json`.
+
+1. `git clone https://github.com/thediveo/spacetest`
+2. in VSCode: Ctrl+Shift+P, "Dev Containers: Open Workspace in Container..."
+3. select `spacetest.code-workspace` and off you go...
+
+## Supported Go Versions
+
+`spacetest` supports versions of Go that are noted by the [Go release
+policy](https://golang.org/doc/devel/release.html#policy), that is, major
+versions _N_ and _N_-1 (where _N_ is the current major version).
+
+## Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Copyright and License
+
+Copyright 2023–25 Harald Albrecht, licensed under the Apache License, Version 2.0.
