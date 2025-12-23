@@ -1,5 +1,11 @@
 # `spacetest`
 
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/thediveo/spacetest)](https://pkg.go.dev/github.com/thediveo/spacetest)
+[![GitHub](https://img.shields.io/github/license/thediveo/spacetest)](https://img.shields.io/github/license/thediveo/spacetest)
+![build and test](https://github.com/thediveo/spacetest/actions/workflows/buildandtest.yaml/badge.svg?branch=master)
+[![goroutines](https://img.shields.io/badge/go%20routines-not%20leaking-success)](https://pkg.go.dev/github.com/onsi/gomega/gleak)
+[![file descriptors](https://img.shields.io/badge/file%20descriptors-not%20leaking-success)](https://pkg.go.dev/github.com/thediveo/fdooze)
+[![Go Report Card](https://goreportcard.com/badge/github.com/thediveo/spacetest)](https://goreportcard.com/report/github.com/thediveo/spacetest)
 ![Coverage](https://img.shields.io/badge/Coverage-98.8%25-brightgreen)
 
 A small package to help with creating transient Linux namespaces in unit
