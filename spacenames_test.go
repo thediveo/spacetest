@@ -27,7 +27,7 @@ var _ = Describe("type names of namespaces", func() {
 		func(typ int, expected string) {
 			Expect(Name(typ)).To(Equal(expected))
 		},
-		Entry(nil, 0, ""),
+		Entry(nil, 0, "???"),
 		Entry(nil, unix.CLONE_NEWCGROUP, "cgroup"),
 		Entry(nil, unix.CLONE_NEWIPC, "ipc"),
 		Entry(nil, unix.CLONE_NEWNS, "mnt"),

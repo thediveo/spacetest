@@ -96,8 +96,8 @@ func EnterTransient(typ int) func() {
 }
 
 // NewTransient creates a new Linux kernel namespace of the specified type, but
-// doesn't enter it. Instead, it returns a file descriptor referencing the the
-// newly created namespace. NewTransient can be used for the following types of
+// doesn't enter it. Instead, it returns a file descriptor referencing the newly
+// created namespace. NewTransient can be used for the following types of
 // namespaces:
 //   - unix.CLONE_NEWCGROUP,
 //   - unix.CLONE_NEWIPC,

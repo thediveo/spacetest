@@ -6,11 +6,13 @@
 [![goroutines](https://img.shields.io/badge/go%20routines-not%20leaking-success)](https://pkg.go.dev/github.com/onsi/gomega/gleak)
 [![file descriptors](https://img.shields.io/badge/file%20descriptors-not%20leaking-success)](https://pkg.go.dev/github.com/thediveo/fdooze)
 [![Go Report Card](https://goreportcard.com/badge/github.com/thediveo/spacetest)](https://goreportcard.com/report/github.com/thediveo/spacetest)
-![Coverage](https://img.shields.io/badge/Coverage-98.9%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-89.7%25-brightgreen)
 
 A small package to help with creating transient Linux namespaces in unit
 testing, without having to deal with the tedious details of proper and robust
-setup and teardown – and without destroying your host filesystem.
+setup and teardown – and without destroying your host filesystem. It even allows
+Go tests to create child user and PID namespaces (with the help of forking child
+processes into new user and PID namespaces).
 
 `spacetest` leverages the [Ginkgo](https://github.com/onsi/ginkgo) testing
 framework with [Gomega](https://github.com/onsi/gomega) matchers.
