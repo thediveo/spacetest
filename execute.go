@@ -77,6 +77,11 @@ func goInAndOut(fn func(), othernsfds ...int) {
 
 	var callersNamespaces []int
 	defer func() {
+		for _, nsfd := range callersNamespaces {
+			_ = unix.Close(nsfd)
+		}
+	}()
+	defer func() {
 		// In case we came here because switching into the specified namespaces
 		// failed, then we silently try to restore things as good as possible
 		// (which is questionable) and then re-panic. We never unlock the
@@ -103,7 +108,11 @@ func goInAndOut(fn func(), othernsfds ...int) {
 	// Attach to the specified namespaces and fail if this doesn't work.
 	for _, nsfd := range othernsfds {
 		typ := Type(nsfd)
-		callersNamespaces = append(callersNamespaces, Current(typ))
+		typename := Name(typ)
+		currentnsfd, err := unix.Open("/proc/thread-self/ns/"+typename, unix.O_RDONLY, 0)
+		Expect(err).NotTo(HaveOccurred(),
+			"cannot determine current %s namespace from procfs", typename)
+		callersNamespaces = append(callersNamespaces, currentnsfd)
 		Expect(unix.Setns(nsfd, typ)).To(Succeed(),
 			func() string {
 				return fmt.Sprintf("cannot switch into %s namespace", Name(typ))
