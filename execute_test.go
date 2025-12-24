@@ -220,7 +220,7 @@ var _ = Describe("doing things in different namespaces", Ordered, func() {
 
 	})
 
-	When("executing in different namespaces", func() {
+	When("directly executing in different namespaces", func() {
 
 		BeforeEach(func() {
 			goodfds := Filedescriptors()
@@ -238,6 +238,12 @@ var _ = Describe("doing things in different namespaces", Ordered, func() {
 
 			netns := NewTransient(unix.CLONE_NEWNET)
 
+			// We do a "hard" fd leak test here to make sure that Execute does
+			// not do any fd cleanup at the unit test level, because that could
+			// cause problems where API users need to use Execute in a
+			// DeferCleanup() fn.
+			goodFds := Filedescriptors()
+
 			count := 0
 			Execute(func() {
 				count++
@@ -247,6 +253,8 @@ var _ = Describe("doing things in different namespaces", Ordered, func() {
 					Equal(Ino(netns, unix.CLONE_NEWNET)), "didn't switch the net namespace")
 			}, netns)
 			Expect(count).To(Equal(1), "didn't call fn")
+
+			Expect(Filedescriptors()).NotTo(HaveLeakedFds(goodFds))
 		})
 
 		It("switches the mount namespace successfully", func() {
@@ -296,6 +304,22 @@ var _ = Describe("doing things in different namespaces", Ordered, func() {
 			Expect(InterceptGomegaFailure(func() {
 				Execute(func() {}, Current(unix.CLONE_NEWUSER))
 			})).To(MatchError(ContainSubstring("cannot Execute() in different user namespace")))
+		})
+
+		Specify("Execute can be used in a DeferCleanup func", func() {
+			// NewTransient schedules a DeferCleanup for closing the namespace
+			// fd it allocated.
+			netns := NewTransient(unix.CLONE_NEWNET)
+
+			// Run the next DeferCleanup before closing the namespace,
+			// exercising Execute.
+			DeferCleanup(func() {
+				count := 0
+				Execute(func() {
+					count++
+				}, netns)
+				Expect(count).To(Equal(1), "didn't call fn")
+			})
 		})
 
 	})
