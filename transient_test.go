@@ -94,7 +94,7 @@ var _ = Describe("transient namespaces", Ordered, func() {
 			runtime.LockOSThread() // this thread will be tainted and must be dropped at the end.
 
 			cleanup := EnterTransient(unix.CLONE_NEWNET)
-			caps.SetForThisTask(caps.TaskCapabilities{})
+			Expect(caps.SetForThisTask(caps.TaskCapabilities{})).To(Succeed())
 			Expect(cleanup).To(PanicWith(
 				ContainSubstring("cannot restore original net namespace")))
 		})
