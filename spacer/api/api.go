@@ -41,20 +41,6 @@ func (er ErrorResponse) response() {}
 
 // ----
 
-type MoinRequest struct{}
-
-var _ Request = (*MoinRequest)(nil)
-
-func (m MoinRequest) request() {}
-
-type MoinResponse struct{}
-
-var _ Response = (*MoinResponse)(nil)
-
-func (m MoinResponse) response() {}
-
-// ----
-
 // NamespaceRefs contains file descriptors referencing Linux kernel namespaces
 // for the defined types; a value of 0 indicates “no reference” (no fd).
 type NamespaceRefs struct {

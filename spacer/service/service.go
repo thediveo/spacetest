@@ -71,10 +71,10 @@ func Serve(ctx context.Context, conn *uds.Conn) {
 		case *api.MoinRequest:
 			_ = req
 			resp = &api.MoinResponse{}
+		case *api.SpawnRequest:
+			resp = spawn(req.NewUser, req.NewPID)
 		default:
-			resp = &api.ErrorResponse{
-				Reason: "unknown request",
-			}
+			panic("unhandled request type")
 		}
 		// Finally encode the response; pay attention to passing a pointer to
 		// the interface, see also the gob "interface" example,
@@ -94,5 +94,10 @@ func Serve(ctx context.Context, conn *uds.Conn) {
 			return
 		}
 	}
+}
 
+func spawn(newuser, newpid bool) api.Response {
+	if !newuser && !newpid {
+		return &api.ErrorResponse{Reason: "spawn: at least one of user, PID namespaces must be requested"}
+	}
 }
