@@ -1,0 +1,112 @@
+// Copyright 2025 Harald Albrecht.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package service
+
+import (
+	"context"
+	"time"
+
+	"github.com/thediveo/spacetest/spacer/api"
+	"github.com/thediveo/spacetest/spacer/gobmsg"
+	"github.com/thediveo/spacetest/uds"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gleak"
+	. "github.com/thediveo/fdooze"
+	. "github.com/thediveo/success"
+)
+
+var _ = Describe("serving space", func() {
+
+	BeforeEach(func() {
+		goodfds := Filedescriptors()
+		goodgos := Goroutines()
+		DeferCleanup(func() {
+			Eventually(Goroutines).Within(2 * time.Second).ProbeEvery(100 * time.Millisecond).
+				ShouldNot(HaveLeaked(goodgos))
+			Expect(Filedescriptors()).NotTo(HaveLeakedFds(goodfds))
+		})
+	})
+
+	It("runs the service until cancelled", func(ctx context.Context) {
+		dupond, dupont := Successful2R(uds.NewPair())
+		defer func() {
+			_ = dupond.Close()
+			_ = dupont.Close()
+		}()
+
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			Serve(ctx, dupont)
+		}()
+
+		Eventually(done).Within(5 * time.Second).Should(BeClosed())
+	})
+
+	It("terminates the service when the client disconnects", func(ctx context.Context) {
+		dupond, dupont := Successful2R(uds.NewPair())
+		defer func() {
+			_ = dupond.Close()
+			_ = dupont.Close()
+		}()
+
+		armed := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			close(armed)
+			Serve(ctx, dupont)
+		}()
+
+		Eventually(armed).Within(1 * time.Second).Should(BeClosed())
+		time.Sleep(1 * time.Second)
+		Expect(dupond.Close()).To(Succeed())
+		Eventually(done).Within(5 * time.Second).Should(BeClosed())
+	})
+
+	It("says moin!", func(ctx context.Context) {
+		dupond, dupont := Successful2R(uds.NewPair())
+		defer func() {
+			_ = dupond.Close()
+			_ = dupont.Close()
+		}()
+
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		go func() {
+			Serve(ctx, dupont)
+		}()
+
+		enc := gobmsg.NewEncoder()
+		dec := gobmsg.NewDecoder()
+
+		var r api.Request = api.MoinRequest{}
+		msg := Successful(enc.Encode(&r))
+		Expect(dupond.SendWithFds(msg)).Error().NotTo(HaveOccurred())
+
+		Expect(dupond.SetReadDeadline(time.Now().Add(2 * time.Second))).To(Succeed())
+		n, _ := Successful2R(dupond.ReceiveFds(dec.Buffer(), 0))
+		var resp api.Response
+		Expect(dec.Decode(n, &resp)).To(Succeed())
+
+		Expect(dupond.Close()).To(Succeed())
+	})
+
+})

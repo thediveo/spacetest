@@ -19,11 +19,12 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/thediveo/fdooze"
 	. "github.com/thediveo/success"
-	"golang.org/x/sys/unix"
 )
 
 var _ = Describe("unix domain sockets (UDS's)", func() {
@@ -81,11 +82,11 @@ var _ = Describe("unix domain sockets (UDS's)", func() {
 			defer func() { _ = unix.Close(canaryfd) }()
 			go func() {
 				defer GinkgoRecover()
-				Expect(dupond.SendFds(canaryfd)).Error().NotTo(HaveOccurred())
+				Expect(dupond.SendWithFds(nil, canaryfd)).Error().NotTo(HaveOccurred())
 			}()
 
 			Expect(dupont.SetReadDeadline(time.Now().Add(2 * time.Second))).To(Succeed())
-			fds := Successful(dupont.ReceiveFds(16))
+			_, fds := Successful2R(dupont.ReceiveFds(nil, 16))
 			defer func() {
 				for _, fd := range fds {
 					_ = unix.Close(fd)
@@ -113,12 +114,12 @@ var _ = Describe("unix domain sockets (UDS's)", func() {
 
 			go func() {
 				defer GinkgoRecover()
-				_, _, err := dupond.WriteMsgUnix(nil, nil, nil)
+				_, _, err := dupond.WriteMsgUnix([]byte("?"), nil, nil)
 				Expect(err).NotTo(HaveOccurred())
 			}()
 
 			Expect(dupont.SetReadDeadline(time.Now().Add(2 * time.Second))).To(Succeed())
-			Expect(dupont.ReceiveFds(42)).Error().To(MatchError("no file descriptors received"))
+			Expect(dupont.ReceiveFds(nil, 42)).Error().To(MatchError("no file descriptors received"))
 		})
 
 		It("returns an error when there is no control message sent", func() {
@@ -129,7 +130,7 @@ var _ = Describe("unix domain sockets (UDS's)", func() {
 			}()
 
 			Expect(dupont.SetReadDeadline(time.Now().Add(1 * time.Second))).To(Succeed())
-			Expect(dupont.ReceiveFds(1)).Error().To(MatchError(
+			Expect(dupont.ReceiveFds(nil, 1)).Error().To(MatchError(
 				ContainSubstring("i/o timeout")))
 		})
 
@@ -163,7 +164,7 @@ var _ = Describe("unix domain sockets (UDS's)", func() {
 			}()
 
 			//Expect(dupont.SetReadDeadline(time.Now().Add(1 * time.Second))).To(Succeed())
-			Expect(dupont.ReceiveFds(42)).Error().To(MatchError("no file descriptors received"))
+			Expect(dupont.ReceiveFds(nil, 42)).Error().To(MatchError("no file descriptors received"))
 		})
 
 	})

@@ -22,17 +22,17 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Conn represents a (datagram) unix domain socket connection that can send and
+// Conn represents a (stream) unix domain socket connection that can send and
 // receive open file descriptors. It wraps [*net.UnixConn]. Use [NewPair] to
 // create a pair of directly peer-to-peer connected Conn objects.
 type Conn struct {
 	*net.UnixConn
 }
 
-// NewPair returns a pair of peer-to-peer connected (datagram) unix domain
-// sockets that can transfer open file descriptors across process boundaries.
+// NewPair returns a pair of peer-to-peer connected (stream) unix domain sockets
+// that can transfer open file descriptors across process boundaries.
 func NewPair() (dupond, dupont *Conn, err error) {
-	fdpair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
+	fdpair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,32 +54,32 @@ func NewPair() (dupond, dupont *Conn, err error) {
 	return dupond, dupont, nil
 }
 
-// SendFds sends the passed file descriptors over the (datagram) UDS connection
-// in a single control message (ancillary data).
-func (c *Conn) SendFds(fds ...int) (noob int, err error) {
+// SendWithFds sends the passed data as well as the passed file descriptors over
+// the (stream) UDS connection in a single control message (ancillary data).
+func (c *Conn) SendWithFds(b []byte, fds ...int) (noob int, err error) {
 	// Please note that unix.UnixRights returns a single control message
 	// consisting of the header as well as the fd payload.
 	oob := unix.UnixRights(fds...)
-	_, noob, err = c.WriteMsgUnix(nil, oob, nil)
+	_, noob, err = c.WriteMsgUnix(b, oob, nil)
 	return noob, err
 }
 
 // ReceiveFds returns the file descriptors received in a single control message
-// (ancillary data) from the (datagram) UDS connection, otherwise it returns an
+// (ancillary data) from the (stream) UDS connection, otherwise it returns an
 // error.
-func (c *Conn) ReceiveFds(maxfds int) (fds []int, err error) {
+func (c *Conn) ReceiveFds(b []byte, maxfds int) (n int, fds []int, err error) {
 	// We're trying to do the reverse of what unix.UnixRights does: it packages
 	// file descriptors as int32's and then there's control message header
 	// overhead, but this is where unix.CmsgSpace gives us the correct number
 	// for the amount of control message payload.
 	oob := make([]byte, unix.CmsgSpace(maxfds*4))
-	_, noob, _, _, err := c.ReadMsgUnix(nil, oob)
+	n, noob, _, _, err := c.ReadMsgUnix(b, oob)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	cms, err := unix.ParseSocketControlMessage(oob[:noob])
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	for _, cm := range cms {
 		if cm.Header.Level != unix.SOL_SOCKET || cm.Header.Type != unix.SCM_RIGHTS {
@@ -87,11 +87,14 @@ func (c *Conn) ReceiveFds(maxfds int) (fds []int, err error) {
 		}
 		fds, err := unix.ParseUnixRights(&cm)
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
-		return fds, err
+		return n, fds, err
 	}
-	return nil, errors.New("no file descriptors received")
+	if maxfds == 0 {
+		return n, nil, nil
+	}
+	return 0, nil, errors.New("no file descriptors received")
 }
 
 // newUnixConn returns a *net.UnixConn for the passed unix domain socket fd;
