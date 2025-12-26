@@ -17,6 +17,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -25,9 +26,18 @@ import (
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/uds"
+	"golang.org/x/sys/unix"
 )
 
-func Serve(ctx context.Context, conn *uds.Conn) {
+// Spacer fulfills the spacer API.
+type Spacer interface {
+	Moin(*api.MoinRequest) api.Response
+	Subspace(*api.SubspaceRequest) api.Response
+}
+
+// Serve services requests on the passed *uds.Conn until the client disconnects,
+// using the passed spacer to carry out the requests.
+func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 	enc := gobmsg.NewEncoder()
 	dec := gobmsg.NewDecoder()
 
@@ -58,7 +68,9 @@ func Serve(ctx context.Context, conn *uds.Conn) {
 				slog.String("err", err.Error()))
 			return
 		}
-		// try to decode the read service request.
+		// Try to decode the read service request contained in the received
+		// message. Please note that req will then hold the request value
+		// itself, but not a pointer to a request value. Gotcha.
 		var req api.Request
 		if err := dec.Decode(n, &req); err != nil {
 			slog.Error("cannot decode incoming request",
@@ -68,13 +80,12 @@ func Serve(ctx context.Context, conn *uds.Conn) {
 		// handle the service request and get a response.
 		var resp api.Response
 		switch req := req.(type) {
-		case *api.MoinRequest:
-			_ = req
-			resp = &api.MoinResponse{}
-		case *api.SpawnRequest:
-			resp = spawn(req.NewUser, req.NewPID)
+		case api.MoinRequest:
+			resp = spacer.Moin(&req)
+		case api.SubspaceRequest:
+			resp = spacer.Subspace(&req)
 		default:
-			panic("unhandled request type")
+			panic(fmt.Sprintf("unhandled request type %T", req))
 		}
 		// Finally encode the response; pay attention to passing a pointer to
 		// the interface, see also the gob "interface" example,
@@ -89,15 +100,16 @@ func Serve(ctx context.Context, conn *uds.Conn) {
 		if fdsencoder, ok := resp.(api.FdsEncoder); ok {
 			fds = fdsencoder.EncodeFds()
 		}
-		if _, err := conn.SendWithFds(msg, fds...); err != nil {
+		_, err = conn.SendWithFds(msg, fds...)
+		// Make sure to close the file descriptors because they're now in
+		// transit with the kernel in charge, or the kernel didn't take
+		// ownership and then we need to close them also as to not leak them.
+		for _, fd := range fds {
+			_ = unix.Close(fd)
+		}
+		if err != nil {
 			slog.Error("cannot send", slog.String("err", err.Error()))
 			return
 		}
-	}
-}
-
-func spawn(newuser, newpid bool) api.Response {
-	if !newuser && !newpid {
-		return &api.ErrorResponse{Reason: "spawn: at least one of user, PID namespaces must be requested"}
 	}
 }

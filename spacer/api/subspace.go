@@ -1,0 +1,81 @@
+// Copyright 2025 Harald Albrecht.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package api
+
+import (
+	"github.com/thediveo/spacetest"
+	"golang.org/x/sys/unix"
+)
+
+// SubspaceRequest indicates which hierarchical namespaces to create, as the
+// OR'ed combination of at most unix.CLONE_NEWUSER and unix.CLONE_NEWPID. The
+// request must specify at least one of the user and pid namespaces, but is not
+// allowed to specify any other type of namespace.
+type SubspaceRequest struct {
+	Spaces uint64 // at most unix.CLONE_NEWUSER | unix.CLONE_NEWPID
+}
+
+type SubspaceResponse struct {
+	Conn int // fd of client unix domain socket
+	User int
+	PID  int
+}
+
+var _ Request = (*SubspaceRequest)(nil)
+
+func (s SubspaceRequest) request() {}
+
+var (
+	_ Response   = (*SubspaceResponse)(nil)
+	_ FdsEncoder = (*SubspaceResponse)(nil)
+	_ FdsDecoder = (*SubspaceResponse)(nil)
+)
+
+func (s SubspaceResponse) response() {}
+
+// EncodeFds returns the file descriptors contained in the response message,
+// replacing the original message fields with zero values so the fields don't
+// get transferred by gob.
+func (s *SubspaceResponse) EncodeFds() []int {
+	fds := []int{s.Conn}
+	s.Conn = 0
+	if s.User > 0 {
+		fds = append(fds, s.User)
+		s.User = 0
+	}
+	if s.PID > 0 {
+		fds = append(fds, s.PID)
+		s.PID = 0
+	}
+	return fds
+}
+
+// DecodeFds distributes the passed file descriptors that were received as
+// auxillary data with a response message back into their corresponding message
+// fields. DecodeFds closes any passed file descriptors it cannot make any sense
+// of.
+func (s *SubspaceResponse) DecodeFds(fds []int) {
+	s.Conn = fds[0]
+	for _, fd := range fds[1:] {
+		switch typ, _ := unix.IoctlRetInt(fd, spacetest.NS_GET_NSTYPE); typ {
+		case unix.CLONE_NEWUSER:
+			s.User = fd
+		case unix.CLONE_NEWPID:
+			s.PID = fd
+		default:
+			_ = unix.Close(fd)
+		}
+	}
+}

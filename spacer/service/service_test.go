@@ -54,7 +54,7 @@ var _ = Describe("serving space", func() {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			Serve(ctx, dupont)
+			Serve(ctx, dupont, &mock{})
 		}()
 
 		Eventually(done).Within(5 * time.Second).Should(BeClosed())
@@ -72,7 +72,7 @@ var _ = Describe("serving space", func() {
 		go func() {
 			defer close(done)
 			close(armed)
-			Serve(ctx, dupont)
+			Serve(ctx, dupont, &mock{})
 		}()
 
 		Eventually(armed).Within(1 * time.Second).Should(BeClosed())
@@ -91,7 +91,7 @@ var _ = Describe("serving space", func() {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		go func() {
-			Serve(ctx, dupont)
+			Serve(ctx, dupont, &mock{})
 		}()
 
 		enc := gobmsg.NewEncoder()
@@ -108,5 +108,7 @@ var _ = Describe("serving space", func() {
 
 		Expect(dupond.Close()).To(Succeed())
 	})
+
+	It("")
 
 })

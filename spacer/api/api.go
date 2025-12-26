@@ -54,4 +54,6 @@ func init() {
 
 	gob.Register(MoinRequest{})
 	gob.Register(MoinResponse{})
+	gob.Register(SubspaceRequest{})
+	gob.Register(SubspaceResponse{})
 }
