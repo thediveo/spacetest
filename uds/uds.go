@@ -36,14 +36,14 @@ func NewPair() (dupond, dupont *Conn, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	dupond, err = newUnixConn(fdpair[0], "dupond")
+	dupond, err = NewUnixConn(fdpair[0], "dupond")
 	if err != nil {
 		// fdpair[0] is always closed by now, but we don't want to leak
 		// fdpair[1]...
 		_ = unix.Close(fdpair[1])
 		return nil, nil, err
 	}
-	dupont, err = newUnixConn(fdpair[1], "dupont")
+	dupont, err = NewUnixConn(fdpair[1], "dupont")
 	if err != nil {
 		// fdpair[0] was closed already, fdpair[1] is always closed by now too,
 		// so we only need to dispose of the first successfully created
@@ -97,7 +97,7 @@ func (c *Conn) ReceiveFds(b []byte, maxfds int) (n int, fds []int, err error) {
 	return 0, nil, errors.New("no file descriptors received")
 }
 
-// newUnixConn returns a *net.UnixConn for the passed unix domain socket fd;
+// NewUnixConn returns a *net.UnixConn for the passed unix domain socket fd;
 // otherwise, it then returns an error in case of failure.
 //
 // Why do we want a UnixConn? Because it has ReadMsgUnix and WriteMsgUnix
@@ -105,11 +105,11 @@ func (c *Conn) ReceiveFds(b []byte, maxfds int) (n int, fds []int, err error) {
 // information” or “ancillary data” (for instance, see sendmsg(2),
 // https://www.man7.org/linux/man-pages/man2/sendmsg.2.html).
 //
-// Important: newUnixConn always takes ownership of the passed file descriptor
+// Important: NewUnixConn always takes ownership of the passed file descriptor
 // and will close it, even in case of error. A caller must not use the passed
 // file descriptor anymore and the caller must not close the passed file
 // descriptor themselves.
-func newUnixConn(udsfd int, nickname string) (*Conn, error) {
+func NewUnixConn(udsfd int, nickname string) (*Conn, error) {
 	f := os.NewFile(uintptr(udsfd), nickname)
 	if f == nil {
 		return nil, errors.New("not a file descriptor")

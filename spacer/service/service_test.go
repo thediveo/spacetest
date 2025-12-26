@@ -16,11 +16,14 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"github.com/thediveo/spacetest"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/uds"
+	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,6 +42,12 @@ var _ = Describe("serving space", func() {
 				ShouldNot(HaveLeaked(goodgos))
 			Expect(Filedescriptors()).NotTo(HaveLeakedFds(goodfds))
 		})
+
+		oldDefault := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(GinkgoWriter, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})))
+		DeferCleanup(func() { slog.SetDefault(oldDefault) })
 	})
 
 	It("runs the service until cancelled", func(ctx context.Context) {
@@ -109,6 +118,61 @@ var _ = Describe("serving space", func() {
 		Expect(dupond.Close()).To(Succeed())
 	})
 
-	It("")
+	It("fakes a subspace and then says moin!", func(ctx context.Context) {
+		dupond, dupont := Successful2R(uds.NewPair())
+		defer func() {
+			_ = dupond.Close()
+			_ = dupont.Close()
+		}()
+
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		go func() {
+			Serve(ctx, dupont, &mock{})
+		}()
+
+		enc := gobmsg.NewEncoder()
+		dec := gobmsg.NewDecoder()
+
+		By("requesting a subspace")
+		var r api.Request = api.SubspaceRequest{Spaces: unix.CLONE_NEWUSER}
+		msg := Successful(enc.Encode(&r))
+		Expect(dupond.SendWithFds(msg)).Error().NotTo(HaveOccurred())
+
+		Expect(dupond.SetReadDeadline(time.Now().Add(2 * time.Second))).To(Succeed())
+		n, fds := Successful2R(dupond.ReceiveFds(dec.Buffer(), 3))
+		defer func() {
+			for _, fd := range fds {
+				_ = unix.Close(fd)
+			}
+		}()
+
+		var resp api.Response
+		Expect(dec.Decode(n, &resp)).To(Succeed())
+		sspcResp, ok := resp.(api.SubspaceResponse)
+		Expect(ok).To(BeTrue())
+		sspcResp.DecodeFds(fds)
+
+		Expect(sspcResp.Conn).NotTo(BeZero())
+		haddock := Successful(uds.NewUnixConn(sspcResp.Conn, "haddock"))
+		defer func() { _ = haddock.Close() }()
+
+		Expect(sspcResp.User).NotTo(BeZero())
+		Expect(spacetest.Ino(sspcResp.User, unix.CLONE_NEWUSER)).To(Equal(
+			spacetest.CurrentIno(unix.CLONE_NEWUSER)))
+
+		By("saying moin! to the new spacer service")
+		// reinitialize encoder/decode because we're now talking to another service instance.
+		enc = gobmsg.NewEncoder()
+		dec = gobmsg.NewDecoder()
+
+		r = api.MoinRequest{}
+		msg = Successful(enc.Encode(&r))
+		Expect(haddock.SendWithFds(msg)).Error().NotTo(HaveOccurred())
+
+		Expect(haddock.SetReadDeadline(time.Now().Add(2 * time.Second))).To(Succeed())
+		n, _ = Successful2R(haddock.ReceiveFds(dec.Buffer(), 0))
+		Expect(dec.Decode(n, &resp)).To(Succeed())
+	})
 
 })

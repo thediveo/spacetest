@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 
+	"github.com/rb-go/namegen"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/uds"
@@ -37,7 +39,19 @@ type Spacer interface {
 
 // Serve services requests on the passed *uds.Conn until the client disconnects,
 // using the passed spacer to carry out the requests.
+//
+// Since this function is used in testing, it generates slog records over the
+// course of its operation. You might thus want to send slog output to the
+// GinkgoWriter: this way, you won't be bothered with slog output unless your
+// test fails ($HEAVENS forbid!) or you explicitly request to see it all using
+// “-ginkgo.v” when running tests.
 func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
+	id := namegen.GetName(0)
+	slog.Info("spacer serving started", slog.String("spacer-id", id))
+	defer func() {
+		slog.Info("spacer serving terminated", slog.String("spacer-id", id))
+	}()
+
 	enc := gobmsg.NewEncoder()
 	dec := gobmsg.NewDecoder()
 
@@ -45,6 +59,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// Check and exit if the context is done by now.
 		select {
 		case <-ctx.Done():
+			slog.Info("context cancelled", slog.String("spacer-id", id))
 			return
 		default:
 		}
@@ -52,7 +67,9 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// with it. We set a read deadline so that we can check our context from
 		// time to time. If we hit the deadline that's fine, we simply restart.
 		if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-			slog.Error("cannot set deadline", slog.String("err", err.Error()))
+			slog.Error("cannot set deadline",
+				slog.String("spacer-id", id),
+				slog.String("err", err.Error()))
 			return
 		}
 		n, _, err := conn.ReceiveFds(dec.Buffer(), 0)
@@ -61,10 +78,12 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 				continue
 			}
 			// https://go.dev/wiki/ErrorValueFAQ
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+				slog.Info("client disconnected", slog.String("spacer-id", id))
 				return
 			}
 			slog.Error("cannot receive",
+				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
 		}
@@ -74,10 +93,14 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		var req api.Request
 		if err := dec.Decode(n, &req); err != nil {
 			slog.Error("cannot decode incoming request",
+				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
 		}
 		// handle the service request and get a response.
+		slog.Info("serving request",
+			slog.String("spacer-id", id),
+			slog.String("service", fmt.Sprintf("%T", req)))
 		var resp api.Response
 		switch req := req.(type) {
 		case api.MoinRequest:
@@ -85,6 +108,9 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		case api.SubspaceRequest:
 			resp = spacer.Subspace(&req)
 		default:
+			slog.Error("unhandled request",
+				slog.String("spacer-id", id),
+				slog.String("type", fmt.Sprintf("%T", req)))
 			panic(fmt.Sprintf("unhandled request type %T", req))
 		}
 		// Finally encode the response; pay attention to passing a pointer to
@@ -92,7 +118,9 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// https://pkg.go.dev/encoding/gob#example-package-Interface
 		msg, err := enc.Encode(&resp)
 		if err != nil {
-			slog.Error("cannot encode response", slog.String("err", err.Error()))
+			slog.Error("cannot encode response",
+				slog.String("spacer-id", id),
+				slog.String("err", err.Error()))
 			return
 		}
 		// are there any file descriptors to transfer...?
@@ -108,7 +136,9 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 			_ = unix.Close(fd)
 		}
 		if err != nil {
-			slog.Error("cannot send", slog.String("err", err.Error()))
+			slog.Error("cannot send",
+				slog.String("spacer-id", id),
+				slog.String("err", err.Error()))
 			return
 		}
 	}

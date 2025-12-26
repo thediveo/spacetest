@@ -15,6 +15,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/uds"
 	"golang.org/x/sys/unix"
@@ -28,18 +30,24 @@ func (m *mock) Moin(*api.MoinRequest) api.Response {
 	return &api.MoinResponse{}
 }
 
+// Subspace ...
 func (m *mock) Subspace(req *api.SubspaceRequest) api.Response {
-	if req.Spaces == 0 || req.Spaces & ^uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID) != 0 {
+	if req.Spaces&(unix.CLONE_NEWUSER|unix.CLONE_NEWPID) == 0 ||
+		req.Spaces & ^uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID) != 0 {
 		return &api.ErrorResponse{Reason: "invalid"}
 	}
+
 	dupond, dupont, err := uds.NewPair()
-	defer func() {
-		_ = dupond.Close()
-		_ = dupont.Close()
-	}()
 	if err != nil {
 		return &api.ErrorResponse{Reason: err.Error()}
 	}
+	defer func() { _ = dupond.Close() }()
+
+	go func() {
+		defer func() { _ = dupont.Close() }()
+		Serve(context.Background(), dupont, &mock{})
+	}()
+
 	f, err := dupond.File()
 	if err != nil {
 		return &api.ErrorResponse{Reason: "cannot retrieve File"}
@@ -52,5 +60,22 @@ func (m *mock) Subspace(req *api.SubspaceRequest) api.Response {
 	resp := &api.SubspaceResponse{
 		Conn: fd,
 	}
+
+	if req.Spaces&unix.CLONE_NEWUSER != 0 {
+		resp.User, err = unix.Open("/proc/self/ns/user", unix.O_RDONLY, 0)
+		if err != nil {
+			_ = unix.Close(resp.Conn)
+			return &api.ErrorResponse{Reason: "user namespace failure"}
+		}
+	}
+	if req.Spaces&unix.CLONE_NEWPID != 0 {
+		resp.User, err = unix.Open("/proc/self/ns/pid", unix.O_RDONLY, 0)
+		if err != nil {
+			_ = unix.Close(resp.Conn)
+			_ = unix.Close(resp.User)
+			return &api.ErrorResponse{Reason: "user namespace failure"}
+		}
+	}
+
 	return resp
 }

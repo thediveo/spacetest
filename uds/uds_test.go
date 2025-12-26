@@ -48,20 +48,20 @@ var _ = Describe("unix domain sockets (UDS's)", func() {
 
 			fdpair := Successful(unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0))
 			Expect(unix.Close(fdpair[1])).To(Succeed())
-			unixconn := Successful(newUnixConn(fdpair[0], "dupond"))
+			unixconn := Successful(NewUnixConn(fdpair[0], "dupond"))
 			Expect(unixconn.Close()).To(Succeed())
 		})
 
 		It("returns an error when the passed fd is bonkers", func() {
-			Expect(newUnixConn(-1, "nada")).Error().To(MatchError(
+			Expect(NewUnixConn(-1, "nada")).Error().To(MatchError(
 				ContainSubstring("not a file descriptor")))
 
-			Expect(newUnixConn(0, "nada")).Error().To(MatchError(
+			Expect(NewUnixConn(0, "nada")).Error().To(MatchError(
 				ContainSubstring("socket operation on non-socket")))
 
 			udpsockfd := Successful(unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0))
 			defer func() { _ = unix.Close(udpsockfd) }()
-			Expect(newUnixConn(udpsockfd, "nada")).Error().To(MatchError(
+			Expect(NewUnixConn(udpsockfd, "nada")).Error().To(MatchError(
 				ContainSubstring("not a unix domain socket")))
 		})
 
