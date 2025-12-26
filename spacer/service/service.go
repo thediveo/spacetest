@@ -24,7 +24,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rb-go/namegen"
+	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/uds"
@@ -46,7 +46,7 @@ type Spacer interface {
 // test fails ($HEAVENS forbid!) or you explicitly request to see it all using
 // “-ginkgo.v” when running tests.
 func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
-	id := namegen.GetName(0)
+	id := petname.Generate(2, "-")
 	slog.Info("spacer serving started", slog.String("spacer-id", id))
 	defer func() {
 		slog.Info("spacer serving terminated", slog.String("spacer-id", id))
