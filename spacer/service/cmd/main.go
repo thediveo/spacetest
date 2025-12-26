@@ -12,31 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package service
+package main
 
 import (
-	"github.com/thediveo/spacetest/spacer/api"
+	"context"
+	"log/slog"
+	"os"
+
+	"github.com/thediveo/spacetest/spacer/service"
 	"github.com/thediveo/spacetest/uds"
 )
 
-type Spacemaker struct{}
-
-var _ Spacer = (*Spacemaker)(nil)
-
-func NewSpacemaker(conn *uds.Conn) *Spacemaker {
-
-}
-
-// Moin just responds with Moin as it is ancient custom.
-func (s *Spacemaker) Moin(*api.MoinRequest) api.Response {
-	return &api.MoinResponse{}
-}
-
-// Subspace
-func (s *Spacemaker) Subspace(*api.SubspaceRequest) api.Response {
-	return nil // FIXME:
-}
-
-func (s *Spacemaker) Room(*api.MakeRequest) api.Response {
-	return nil // FIXME:
+func main() {
+	dupont, err := uds.NewUnixConn(3, "dupont")
+	if err != nil {
+		slog.Error("invalid fd 3", slog.String("err", err.Error()))
+		os.Exit(1)
+	}
+	service.Serve(context.Background(), dupont, &Spacemaker{})
 }
