@@ -39,14 +39,6 @@ var _ Response = (*ErrorResponse)(nil)
 
 func (er ErrorResponse) response() {}
 
-// ----
-
-// NamespaceRefs contains file descriptors referencing Linux kernel namespaces
-// for the defined types; a value of 0 indicates “no reference” (no fd).
-type NamespaceRefs struct {
-	Cgroup, IPC, Mount, Net, PID, Time, User, UTS int
-}
-
 // Register the individual request and response struct types so that we can use
 // interface polymorphy when receiving request (sic!) or responses.
 func init() {
@@ -56,4 +48,6 @@ func init() {
 	gob.Register(MoinResponse{})
 	gob.Register(SubspaceRequest{})
 	gob.Register(SubspaceResponse{})
+	gob.Register(MakeRequest{})
+	gob.Register(MakeResponse{})
 }

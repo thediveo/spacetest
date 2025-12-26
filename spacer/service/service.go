@@ -31,10 +31,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Spacer fulfills the spacer API.
+// Spacer services the spacer API.
 type Spacer interface {
 	Moin(*api.MoinRequest) api.Response
 	Subspace(*api.SubspaceRequest) api.Response
+	Room(*api.MakeRequest) api.Response
 }
 
 // Serve services requests on the passed *uds.Conn until the client disconnects,

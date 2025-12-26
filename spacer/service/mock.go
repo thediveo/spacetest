@@ -30,6 +30,10 @@ func (m *mock) Moin(*api.MoinRequest) api.Response {
 	return &api.MoinResponse{}
 }
 
+func (m *mock) Room(*api.MakeRequest) api.Response {
+	return &api.ErrorResponse{Reason: "not mocked"}
+}
+
 // Subspace ...
 func (m *mock) Subspace(req *api.SubspaceRequest) api.Response {
 	if req.Spaces&(unix.CLONE_NEWUSER|unix.CLONE_NEWPID) == 0 ||
