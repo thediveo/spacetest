@@ -24,6 +24,7 @@ import (
 	"github.com/thediveo/spacetest/uds"
 	"golang.org/x/sys/unix"
 
+	gi "github.com/onsi/ginkgo/v2"
 	g "github.com/onsi/gomega"
 )
 
@@ -40,6 +41,8 @@ type Client struct {
 // The service instance will terminate either when the passed context gets
 // cancelled or when the Close method of the returned client object is called.
 func New(ctx context.Context) *Client {
+	gi.GinkgoHelper()
+
 	dupond, dupont, err := uds.NewPair()
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot create connected unix domain socket pair")
 
@@ -59,7 +62,9 @@ func (c *Client) Close() {
 	_ = c.conn.Close()
 }
 
-func (c *Client) Subspace(user, pid bool) api.Subspaces {
+func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
+	gi.GinkgoHelper()
+
 	var spaces uint64
 	if user {
 		spaces |= unix.CLONE_NEWUSER
@@ -83,5 +88,14 @@ func (c *Client) Subspace(user, pid bool) api.Subspaces {
 	resp, ok := r.(*api.SubspaceResponse)
 	g.Expect(ok).To(g.BeTrue(), "not a subspace response")
 	resp.DecodeFds(fds)
-	return resp.Subspaces
+
+	subconn, err := uds.NewUnixConn(resp.Conn, "subspace")
+	g.Expect(err).NotTo(g.HaveOccurred(), "subspace connection failure")
+	newclient := &Client{
+		conn: subconn,
+		enc:  gobmsg.NewEncoder(),
+		dec:  gobmsg.NewDecoder(),
+	}
+
+	return newclient, resp.Subspaces
 }
