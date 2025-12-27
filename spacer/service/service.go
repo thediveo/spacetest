@@ -48,9 +48,9 @@ type Spacer interface {
 // “-ginkgo.v” when running tests.
 func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 	id := petname.Generate(2, "-")
-	slog.Info("spacer serving started", slog.String("spacer-id", id))
+	slog.Info("spacer serving loop started", slog.String("spacer-id", id))
 	defer func() {
-		slog.Info("spacer serving terminated", slog.String("spacer-id", id))
+		slog.Info("spacer serving loop terminated", slog.String("spacer-id", id))
 	}()
 
 	enc := gobmsg.NewEncoder()

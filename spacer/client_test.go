@@ -46,7 +46,7 @@ var _ = Describe("spacer client", func() {
 		cl := New(ctx)
 		defer cl.Close()
 
-		subcl, spc := cl.Subspace(false, true)
+		subcl, spc := cl.Subspace(true, true)
 		defer func() {
 			subcl.Close()
 			_ = unix.Close(spc.User)

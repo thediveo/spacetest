@@ -37,7 +37,7 @@ const validSpaces = unix.CLONE_NEWCGROUP |
 	unix.CLONE_NEWUTS
 
 type Spacemaker struct {
-	exe string
+	Exe string
 }
 
 var _ Spacer = (*Spacemaker)(nil)
@@ -89,12 +89,12 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 
 	// We can finally start ourselves again as a new child process, creating the
 	// requested user and PID namespaces.
-	subspace := exec.Command(cmp.Or(s.exe, "/proc/self/exe"))
+	subspace := exec.Command(cmp.Or(s.Exe, "/proc/self/exe"))
 	subspace.Stdout = os.Stdout
 	subspace.Stderr = os.Stderr
 	subspace.ExtraFiles = []*os.File{dupontf}
 	subspace.SysProcAttr = &syscall.SysProcAttr{
-		Unshareflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
+		Cloneflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
 	}
 	slog.Info("starting new subspace service instance")
 	if err := subspace.Start(); err != nil {
@@ -104,9 +104,11 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		return &api.ErrorResponse{Reason: "failed to start sub service, reason: " + err.Error()}
 	}
 	go func() {
-		slog.Info("waiting for subspace to close")
+		childpid := subspace.Process.Pid
+		slog.Info("waiting in background for subspace to close",
+			slog.Int("pid", childpid))
 		_, _ = subspace.Process.Wait()
-		slog.Info("subspace closed")
+		slog.Info("subspace closed", slog.Int("pid", childpid))
 	}()
 
 	// Good! We finally can prepare our response; but for this we need to get

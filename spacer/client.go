@@ -59,7 +59,7 @@ func New(ctx context.Context) *Client {
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot create connected unix domain socket pair")
 
 	go func() {
-		service.Serve(ctx, dupont, &service.Spacemaker{})
+		service.Serve(ctx, dupont, &service.Spacemaker{Exe: spacerServiceBinary})
 		_ = dupont.Close()
 	}()
 
