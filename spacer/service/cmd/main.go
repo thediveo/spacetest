@@ -29,5 +29,5 @@ func main() {
 		slog.Error("invalid fd 3", slog.String("err", err.Error()))
 		os.Exit(1)
 	}
-	service.Serve(context.Background(), dupont, &Spacemaker{})
+	service.Serve(context.Background(), dupont, &service.Spacemaker{})
 }

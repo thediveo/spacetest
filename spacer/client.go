@@ -1,0 +1,87 @@
+// Copyright 2025 Harald Albrecht.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package spacer
+
+import (
+	"context"
+	"time"
+
+	"github.com/thediveo/spacetest/spacer/api"
+	"github.com/thediveo/spacetest/spacer/gobmsg"
+	"github.com/thediveo/spacetest/spacer/service"
+	"github.com/thediveo/spacetest/uds"
+	"golang.org/x/sys/unix"
+
+	g "github.com/onsi/gomega"
+)
+
+// Client ...
+//
+// Note: Client CANNOT be used concurrently.
+type Client struct {
+	conn *uds.Conn
+	enc  *gobmsg.Encoder
+	dec  *gobmsg.Decoder
+}
+
+// New returns a new spacer client connected to a new spacer service instance.
+// The service instance will terminate either when the passed context gets
+// cancelled or when the Close method of the returned client object is called.
+func New(ctx context.Context) *Client {
+	dupond, dupont, err := uds.NewPair()
+	g.Expect(err).NotTo(g.HaveOccurred(), "cannot create connected unix domain socket pair")
+
+	go func() {
+		service.Serve(ctx, dupont, &service.Spacemaker{})
+		_ = dupont.Close()
+	}()
+
+	return &Client{
+		conn: dupond,
+		enc:  gobmsg.NewEncoder(),
+		dec:  gobmsg.NewDecoder(),
+	}
+}
+
+func (c *Client) Close() {
+	_ = c.conn.Close()
+}
+
+func (c *Client) Subspace(user, pid bool) api.Subspaces {
+	var spaces uint64
+	if user {
+		spaces |= unix.CLONE_NEWUSER
+	}
+	if pid {
+		spaces |= unix.CLONE_NEWPID
+	}
+	var req api.Request = api.SubspaceRequest{Spaces: spaces}
+	msg, err := c.enc.Encode(&req)
+	g.Expect(err).NotTo(g.HaveOccurred(), "cannot encode subspace request")
+	g.Expect(c.conn.SendWithFds(msg)).Error().NotTo(g.HaveOccurred(), "cannot send subspace request")
+
+	g.Expect(c.conn.SetReadDeadline(time.Now().Add(5*time.Second))).To(g.Succeed(), "cannot receive subspace response")
+	n, fds, err := c.conn.ReceiveFds(c.dec.Buffer(), 3)
+	g.Expect(err).NotTo(g.HaveOccurred(), "cannot receive subspace response")
+	var r api.Response
+	g.Expect(c.dec.Decode(n, &r)).To(g.Succeed(), "cannot decode subspace response")
+	if e, _ := r.(*api.ErrorResponse); e != nil {
+		g.Expect(e).NotTo(g.BeNil(), "subspace service failed")
+	}
+	resp, ok := r.(*api.SubspaceResponse)
+	g.Expect(ok).To(g.BeTrue(), "not a subspace response")
+	resp.DecodeFds(fds)
+	return resp.Subspaces
+}

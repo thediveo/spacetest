@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package service
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/thediveo/spacetest"
 	"github.com/thediveo/spacetest/spacer/api"
-	"github.com/thediveo/spacetest/spacer/service"
 	"github.com/thediveo/spacetest/uds"
 	"golang.org/x/sys/unix"
 )
@@ -36,9 +36,11 @@ const validSpaces = unix.CLONE_NEWCGROUP |
 	unix.CLONE_NEWTIME |
 	unix.CLONE_NEWUTS
 
-type Spacemaker struct{}
+type Spacemaker struct {
+	exe string
+}
 
-var _ service.Spacer = (*Spacemaker)(nil)
+var _ Spacer = (*Spacemaker)(nil)
 
 // Moin just responds with Moin as it is ancient custom.
 func (s *Spacemaker) Moin(*api.MoinRequest) api.Response {
@@ -87,7 +89,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 
 	// We can finally start ourselves again as a new child process, creating the
 	// requested user and PID namespaces.
-	subspace := exec.Command("/proc/self/exe")
+	subspace := exec.Command(cmp.Or(s.exe, "/proc/self/exe"))
 	subspace.Stdout = os.Stdout
 	subspace.Stderr = os.Stderr
 	subspace.ExtraFiles = []*os.File{dupontf}
@@ -145,8 +147,10 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 
 	return &api.SubspaceResponse{
 		Conn: connfd,
-		User: userfd,
-		PID:  pidfd,
+		Subspaces: api.Subspaces{
+			User: userfd,
+			PID:  pidfd,
+		},
 	}
 }
 

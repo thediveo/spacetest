@@ -27,10 +27,25 @@ type SubspaceRequest struct {
 	Spaces uint64 // at most unix.CLONE_NEWUSER | unix.CLONE_NEWPID
 }
 
+// SubspaceResponse returns the connected unix domain socket to talk to a
+// subspace spacer service instance, as well as the new user and/or PID
+// namespaces created along with the subspacer service.
+//
+// Please note that the receiver takes ownership of the returned file
+// descriptors and thus is responsible to close them when not needing them
+// anymore. Closing the connection fd will also terminate the connected subspace
+// service; sub-subspace services will not be affected.
 type SubspaceResponse struct {
 	Conn int // fd of client unix domain socket
-	User int
-	PID  int
+	Subspaces
+}
+
+// Subspaces contains namespace references in form of open file descriptors. The
+// receiver of a Subspaces value takes ownership and is thus responsible to
+// properly close them when not needing them anymore.
+type Subspaces struct {
+	User int // if >0, the user namespace referencing fd.
+	PID  int // if >0, the PID namespace referencing fd.
 }
 
 var _ Request = (*SubspaceRequest)(nil)
