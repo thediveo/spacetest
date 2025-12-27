@@ -96,12 +96,18 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	subspace.SysProcAttr = &syscall.SysProcAttr{
 		Unshareflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
 	}
+	slog.Info("starting new subspace service instance")
 	if err := subspace.Start(); err != nil {
 		slog.Error("cannot start sub service",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to start sub service, reason: " + err.Error()}
 	}
+	go func() {
+		slog.Info("waiting for subspace to close")
+		_, _ = subspace.Process.Wait()
+		slog.Info("subspace closed")
+	}()
 
 	// Good! We finally can prepare our response; but for this we need to get
 	// our hands on the file descriptor for other connected unix domain socket...

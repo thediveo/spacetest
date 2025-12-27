@@ -18,14 +18,14 @@ import (
 	"context"
 	"time"
 
+	gi "github.com/onsi/ginkgo/v2"
+	g "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/spacer/service"
 	"github.com/thediveo/spacetest/uds"
 	"golang.org/x/sys/unix"
-
-	gi "github.com/onsi/ginkgo/v2"
-	g "github.com/onsi/gomega"
 )
 
 // Client ...
@@ -37,11 +37,23 @@ type Client struct {
 	dec  *gobmsg.Decoder
 }
 
+// FIXME: cleanup
+var spacerServiceBinary string
+
 // New returns a new spacer client connected to a new spacer service instance.
 // The service instance will terminate either when the passed context gets
 // cancelled or when the Close method of the returned client object is called.
 func New(ctx context.Context) *Client {
 	gi.GinkgoHelper()
+
+	if spacerServiceBinary == "" {
+		var err error
+		spacerServiceBinary, err = gexec.BuildWithEnvironment(
+			"github.com/thediveo/spacetest/spacer/service/cmd",
+			[]string{"CGO_ENABLED=0"},
+			"-tags=usergo,netgo")
+		g.Expect(err).NotTo(g.HaveOccurred(), "cannot build spacer service binary")
+	}
 
 	dupond, dupont, err := uds.NewPair()
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot create connected unix domain socket pair")
@@ -82,11 +94,12 @@ func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot receive subspace response")
 	var r api.Response
 	g.Expect(c.dec.Decode(n, &r)).To(g.Succeed(), "cannot decode subspace response")
-	if e, _ := r.(*api.ErrorResponse); e != nil {
-		g.Expect(e).NotTo(g.BeNil(), "subspace service failed")
+	if e, ok := r.(api.ErrorResponse); ok {
+		g.Expect(e).To(g.BeZero(), "subspace service failed")
 	}
-	resp, ok := r.(*api.SubspaceResponse)
-	g.Expect(ok).To(g.BeTrue(), "not a subspace response")
+	var resp api.SubspaceResponse
+	g.Expect(r).To(g.BeAssignableToTypeOf(resp), "not a subspace response")
+	resp = r.(api.SubspaceResponse)
 	resp.DecodeFds(fds)
 
 	subconn, err := uds.NewUnixConn(resp.Conn, "subspace")
