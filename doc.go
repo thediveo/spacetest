@@ -24,11 +24,12 @@ mount point propagation to avoid mishaps (trust us, we /know/).
 Other than that, this package helps again with DRY, such as [unix.CLONE_NEWNS]
 litanies.
 
-# User Namespaces
+# PID and User Namespaces
 
-Please note that user namespaces are notoriously difficult to work with,
-especially in multi-threaded Go tests. Thus, the spacetest package has only very
-limited support for dealing with user namespaces.
+Please note that user and PID namespaces are notoriously difficult to work with,
+especially in multi-threaded Go tests. Thus, the spacetest package has somewhat
+limited support for dealing with user namespaces. Please refer to the
+[github.com/thediveo/spacetest/spacer] package for details.
 
 # Background
 

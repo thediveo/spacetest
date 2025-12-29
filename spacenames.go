@@ -18,10 +18,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Name returns the name for the type of Linux kernel namespace specified, or ""
+// Name returns the name for the type of Linux kernel namespace specified, or "???"
 // if not known.
 func Name(typ int) string {
-	return spaceName[typ]
+	name, ok := spaceName[typ]
+	if !ok {
+		return "???"
+	}
+	return name
 }
 
 var spaceName = map[int]string{

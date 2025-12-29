@@ -37,7 +37,7 @@ const _NSIO = 0xb7
 
 // Returns the type of namespace CLONE_NEW* value referred to by a file
 // descriptor.
-var NS_GET_NSTYPE = ioctl.IO(_NSIO, 0x3)
+var NS_GET_NSTYPE = ioctl.IO(_NSIO, 0x3) //nolint:godoclint // out of touch
 
 // Avoid problems that would happen when we accidentally unshare the initial
 // thread, so we lock it here, thus ensuring that other Go routines (and
