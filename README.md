@@ -53,6 +53,61 @@ time the individual step sequence and many sanity checks inside
 `EnterTransient()`. There's a limit to inflicting full code complexity on
 developers, and good reason for appropriate abstractions.
 
+## Using the Spacer
+
+Using what we call the "spacer" gives you access to creating new child (and
+grandchild) user and PID namespaces, which isn't directly possible from any
+multi-threaded Go application. The spacer leverages exec.Command.Start where the
+kernel allows us to start the child process in new namespaces.
+
+But first, if you use spacetest in a devcontainer, make sure that the Go
+toolchain is accessible to the devcontainer's root user (it isn't necessarily,
+depending on your base image and further features):
+
+```jsonc
+{
+    // ...
+    "postCreateCommand": "echo 'Defaults:vscode secure_path = \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin\"' | sudo tee -a /etc/sudoers.d/vscode",
+    // ...
+}
+```
+
+Then to create child user and PID child namespaces below your test's user and
+PID namespaces:
+
+```go
+import (
+    "context"
+
+    "github.com/thediveo/spacetest/spacer"
+
+    . "github.com/onsi/ginkgo/v2"
+    . "github.com/onsi/gomega"
+)
+
+var _ = Describe("...", func() {
+
+    It("tests something inside transient user and PID namespaces", func(ctx context.Context) {
+        spcclnt := spacer.New(ctx)
+		DeferCleanup(func() {
+			spcclnt.Close()
+		})
+
+		subclnt, subspc := spcclnt.Subspace(true, true)
+		DeferCleanup(func() {
+			_ = unix.Close(subspc.PID)
+			_ = unix.Close(subspc.User)
+			subclnt.Close()
+		})
+        // ...
+    })
+
+})
+```
+
+You can use the returned sub client to create more user and PID namespaces
+further down the hierarchy.
+
 ## DevContainer
 
 > [!CAUTION]
