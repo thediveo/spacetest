@@ -18,13 +18,13 @@ import (
 	"context"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gleak"
 	. "github.com/thediveo/fdooze"
+	"github.com/thediveo/safe"
 	"golang.org/x/sys/unix"
 )
 
@@ -47,7 +47,7 @@ var _ = Describe("spacer client", func() {
 		})
 
 		It("starts a spacer and creates a subspace", func(ctx context.Context) {
-			var out strings.Builder
+			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
 			cl := New(ctx, WithOut(w), WithErr(w))
 			defer cl.Close()
@@ -60,7 +60,7 @@ var _ = Describe("spacer client", func() {
 		})
 
 		It("starts a spacer and creates namespaces", func(ctx context.Context) {
-			var out strings.Builder
+			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
 			cl := New(ctx, WithOut(w), WithErr(w))
 			defer cl.Close()
@@ -90,7 +90,7 @@ var _ = Describe("spacer client", func() {
 
 		DescribeTable("creating transient namespaces",
 			func(ctx context.Context, typ int) {
-				var out strings.Builder
+				var out safe.Buffer
 				w := io.MultiWriter(&out, GinkgoWriter)
 				cl := New(ctx, WithOut(w), WithErr(w))
 				defer cl.Close()

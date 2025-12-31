@@ -17,9 +17,9 @@ package service
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
+	"github.com/thediveo/safe"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/uds"
 
@@ -58,7 +58,7 @@ var _ = Describe("serving space", func() {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		var out strings.Builder
+		var out safe.Buffer
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -79,7 +79,7 @@ var _ = Describe("serving space", func() {
 			_ = dupont.Close()
 		}()
 
-		var out strings.Builder
+		var out safe.Buffer
 		armed := make(chan struct{})
 		done := make(chan struct{})
 		go func() {

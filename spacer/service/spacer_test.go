@@ -17,9 +17,9 @@ package service
 import (
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
+	"github.com/thediveo/safe"
 	"github.com/thediveo/spacetest/spacer/api"
 	"golang.org/x/sys/unix"
 
@@ -56,7 +56,7 @@ var _ = Describe("serving space", func() {
 		})
 
 		It("fails when unable to start new subspace service", func() {
-			var out strings.Builder
+			var out safe.Buffer
 			sm := &Spacemaker{Exe: "/not-existing", Stderr: &out}
 			Expect(sm.Subspace(&api.SubspaceRequest{Spaces: unix.CLONE_NEWUSER})).To(api.HaveFailed())
 			Expect(out.String()).To(MatchRegexp(`cannot start sub service.*fork/exec`))
