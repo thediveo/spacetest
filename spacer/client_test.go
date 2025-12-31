@@ -138,7 +138,6 @@ var _ = Describe("spacer client", func() {
 			subclnt, spc := clnt.Subspace(true, false)
 			DeferCleanup(func() {
 				subclnt.Close()
-				Expect(unix.Close(spc.User)).To(Succeed())
 			})
 			childusernsfd = spc.User
 
