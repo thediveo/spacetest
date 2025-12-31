@@ -16,6 +16,7 @@ package spacer
 
 import (
 	"context"
+	"io"
 	"os"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gleak"
 	. "github.com/thediveo/fdooze"
+	"github.com/thediveo/safe"
 	"golang.org/x/sys/unix"
 )
 
@@ -45,7 +47,9 @@ var _ = Describe("spacer client", func() {
 		})
 
 		It("starts a spacer and creates a subspace", func(ctx context.Context) {
-			cl := New(ctx)
+			var out safe.Buffer
+			w := io.MultiWriter(&out, GinkgoWriter)
+			cl := New(ctx, WithOut(w), WithErr(w))
 			defer cl.Close()
 
 			subcl, spc := cl.Subspace(true, true)
@@ -56,10 +60,14 @@ var _ = Describe("spacer client", func() {
 		})
 
 		It("starts a spacer and creates namespaces", func(ctx context.Context) {
-			cl := New(ctx)
+			var out safe.Buffer
+			w := io.MultiWriter(&out, GinkgoWriter)
+			cl := New(ctx, WithOut(w), WithErr(w))
 			defer cl.Close()
 
 			rooms := cl.Rooms(true, true, true, true, true, true)
+			Eventually(out.String()).Within(2 * time.Second).To(
+				MatchRegexp(`"serving request" .* service=\*api.RoomsRequest`))
 
 			Expect(rooms.Cgroup).To(BeNumerically(">", 0))
 			Expect(rooms.IPC).To(BeNumerically(">", 0))
@@ -82,7 +90,9 @@ var _ = Describe("spacer client", func() {
 
 		DescribeTable("creating transient namespaces",
 			func(ctx context.Context, typ int) {
-				cl := New(ctx)
+				var out safe.Buffer
+				w := io.MultiWriter(&out, GinkgoWriter)
+				cl := New(ctx, WithOut(w), WithErr(w))
 				defer cl.Close()
 				nsfd := cl.NewTransient(typ)
 				Expect(nsfd).To(BeNumerically(">", 0))

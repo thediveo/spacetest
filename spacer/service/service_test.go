@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/thediveo/safe"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/uds"
 
@@ -57,13 +58,18 @@ var _ = Describe("serving space", func() {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
+		var out safe.Buffer
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			Serve(ctx, dupont, &Spacemaker{Exe: "/not-existing"})
+			Serve(ctx, dupont, &Spacemaker{
+				Exe:    "/not-existing",
+				Stderr: &out,
+			})
 		}()
 
 		Eventually(done).Within(5 * time.Second).Should(BeClosed())
+		Expect(out.String()).To(MatchRegexp(`spacer serving loop terminated`))
 	})
 
 	It("terminates the service when the client disconnects", func(ctx context.Context) {
@@ -73,18 +79,23 @@ var _ = Describe("serving space", func() {
 			_ = dupont.Close()
 		}()
 
+		var out safe.Buffer
 		armed := make(chan struct{})
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
 			close(armed)
-			Serve(ctx, dupont, &Spacemaker{Exe: "/not-existing"})
+			Serve(ctx, dupont, &Spacemaker{
+				Exe:    "/not-existing",
+				Stderr: &out,
+			})
 		}()
 
 		Eventually(armed).Within(1 * time.Second).Should(BeClosed())
 		time.Sleep(1 * time.Second)
 		Expect(dupond.Close()).To(Succeed())
 		Eventually(done).Within(5 * time.Second).Should(BeClosed())
+		Expect(out.String()).To(MatchRegexp(`spacer serving loop terminated`))
 	})
 
 })
@@ -102,3 +113,5 @@ func (m *closingmock) Subspace(req *api.SubspaceRequest) api.Response {
 	_ = m.conn.Close()
 	return &api.ErrorResponse{Reason: "not mocked"}
 }
+
+func (m *closingmock) Slog() *slog.Logger { return slog.Default() }

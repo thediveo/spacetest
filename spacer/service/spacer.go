@@ -17,6 +17,7 @@ package service
 import (
 	"cmp"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -37,7 +38,20 @@ const validSpaces = unix.CLONE_NEWCGROUP |
 	unix.CLONE_NEWUTS
 
 type Spacemaker struct {
-	Exe string
+	Exe    string
+	Stdout io.Writer
+	Stderr io.Writer
+	log    *slog.Logger
+}
+
+func (s *Spacemaker) Slog() *slog.Logger {
+	if s.log != nil {
+		return s.log
+	}
+	s.log = slog.New(slog.NewTextHandler(
+		cmp.Or(s.Stderr, io.Writer(os.Stderr)),
+		&slog.HandlerOptions{Level: slog.LevelInfo}))
+	return s.log
 }
 
 var _ Spacer = (*Spacemaker)(nil)
@@ -64,7 +78,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		_ = dupont.Close()
 	}()
 	if err != nil {
-		slog.Error("cannot create unix domain socket pair",
+		s.Slog().Error("cannot create unix domain socket pair",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to create unix domain socket pair, reason: " + err.Error()}
@@ -75,7 +89,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	// while being a duplicate of the socket has a lifecycle of its own).
 	dupontf, err := dupont.File()
 	if err != nil {
-		slog.Error("cannot fetch service *os.File",
+		s.Slog().Error("cannot fetch service *os.File",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch service *os.File, reason: " + err.Error()}
@@ -85,8 +99,8 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	// We can finally start ourselves again as a new child process, creating the
 	// requested user and PID namespaces.
 	subspace := exec.Command(cmp.Or(s.Exe, "/proc/self/exe"))
-	subspace.Stdout = os.Stdout
-	subspace.Stderr = os.Stderr
+	subspace.Stdout = cmp.Or(s.Stdout, io.Writer(os.Stdout))
+	subspace.Stderr = cmp.Or(s.Stderr, io.Writer(os.Stderr))
 	subspace.ExtraFiles = []*os.File{dupontf}
 	subspace.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
@@ -108,26 +122,26 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 			},
 		},
 	}
-	slog.Info("starting new subspace service instance")
+	s.Slog().Info("starting new subspace service instance")
 	if err := subspace.Start(); err != nil {
-		slog.Error("cannot start sub service",
+		s.Slog().Error("cannot start sub service",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to start sub service, reason: " + err.Error()}
 	}
 	go func() {
 		childpid := subspace.Process.Pid
-		slog.Info("waiting in background for subspace to close",
+		s.Slog().Info("waiting in background for subspace to close",
 			slog.Int("pid", childpid))
 		_, _ = subspace.Process.Wait()
-		slog.Info("subspace closed", slog.Int("pid", childpid))
+		s.Slog().Info("subspace closed", slog.Int("pid", childpid))
 	}()
 
 	// Good! We finally can prepare our response; but for this we need to get
 	// our hands on the file descriptor for other connected unix domain socket...
 	dupondf, err := dupond.File()
 	if err != nil {
-		slog.Error("cannot fetch client *os.File",
+		s.Slog().Error("cannot fetch client *os.File",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch client *os.File, reason: " + err.Error()}
@@ -136,7 +150,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 
 	connfd, err := unix.Dup(int(dupondf.Fd()))
 	if err != nil {
-		slog.Error("cannot fetch client fd",
+		s.Slog().Error("cannot fetch client fd",
 			slog.Int("PID", os.Getgid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch client fd, reason: " + err.Error()}
@@ -147,7 +161,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		userfd, err = unix.Open(fmt.Sprintf("/proc/%d/ns/user", subspace.Process.Pid), os.O_RDONLY, 0)
 		if err != nil {
 			_ = unix.Close(connfd)
-			slog.Error("cannot fetch new user namespace",
+			s.Slog().Error("cannot fetch new user namespace",
 				slog.Int("PID", os.Getgid()),
 				slog.String("err", err.Error()))
 			return &api.ErrorResponse{Reason: "failed to determine new user namespace, reason: " + err.Error()}
@@ -158,7 +172,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		if err != nil {
 			_ = unix.Close(userfd)
 			_ = unix.Close(connfd)
-			slog.Error("cannot fetch new PID namespace",
+			s.Slog().Error("cannot fetch new PID namespace",
 				slog.Int("PID", os.Getgid()),
 				slog.String("err", err.Error()))
 			return &api.ErrorResponse{Reason: "failed to determine new PID namespace, reason: " + err.Error()}
@@ -204,7 +218,7 @@ func (s *Spacemaker) Room(req *api.RoomsRequest) api.Response {
 		})
 		go func() {
 			defer close(ch)
-			fd, err := newNamespace(int(typ))
+			fd, err := s.newNamespace(int(typ))
 			ch <- struct {
 				fd  int
 				err error
@@ -259,14 +273,14 @@ func (s *Spacemaker) Room(req *api.RoomsRequest) api.Response {
 // will intentionally still be locked to its OS-level thread so that it will be
 // thrown away after the caller's go routine finally terminates. Thus, call
 // newNamespace on a separate throw-away go routine.
-func newNamespace(typ int) (int, error) {
+func (s *Spacemaker) newNamespace(typ int) (int, error) {
 	runtime.LockOSThread()
 	// never unlock
 
 	name := spacetest.Name(typ)
 	callerns, err := unix.Open("/proc/thread-self/ns/"+name, unix.O_RDONLY, 0)
 	if err != nil {
-		slog.Error("cannot determine current namespace",
+		s.Slog().Error("cannot determine current namespace",
 			slog.String("type", name),
 			slog.String("err", err.Error()))
 		return 0, err
@@ -277,21 +291,21 @@ func newNamespace(typ int) (int, error) {
 	}()
 	if typ == unix.CLONE_NEWNS {
 		if err := unix.Unshare(unix.CLONE_FS); err != nil {
-			slog.Error("cannot unshare fs attributes",
+			s.Slog().Error("cannot unshare fs attributes",
 				slog.String("type", name),
 				slog.String("err", err.Error()))
 			return 0, err
 		}
 	}
 	if err := unix.Unshare(typ); err != nil {
-		slog.Error("cannot create new namespace",
+		s.Slog().Error("cannot create new namespace",
 			slog.String("type", name),
 			slog.String("err", err.Error()))
 		return 0, err
 	}
 	if typ == unix.CLONE_NEWNS {
 		if err := unix.Mount("none", "/", "/", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
-			slog.Error("cannot recursively remount / as private",
+			s.Slog().Error("cannot recursively remount / as private",
 				slog.String("type", name),
 				slog.String("err", err.Error()))
 			return 0, err
@@ -299,7 +313,7 @@ func newNamespace(typ int) (int, error) {
 	}
 	newns, err := unix.Open("/proc/thread-self/ns/"+name, unix.O_RDONLY, 0)
 	if err != nil {
-		slog.Error("cannot determine new namespace",
+		s.Slog().Error("cannot determine new namespace",
 			slog.String("type", name),
 			slog.String("err", err.Error()))
 		return 0, err

@@ -46,6 +46,8 @@ github.com/thediveo/fdooze v0.3.2 h1:tBaK/7U1G8wTNwdIe0qH+V7HUJHRsTBtCKnxwH+rF1E
 github.com/thediveo/fdooze v0.3.2/go.mod h1:Ny0KY0ig+XGYeHdIHz3JelZCtJlnA5fAyOuhiZH1hzY=
 github.com/thediveo/ioctl v0.9.4 h1:HvEW9BW0qkyDXaGqp24Vb4sFrfN5718WLx6VLV2uTxU=
 github.com/thediveo/ioctl v0.9.4/go.mod h1:2k2Us0WLUrBRJWmNo5b0JCg1HicqxxoxB8wKml+e0Eo=
+github.com/thediveo/safe v0.9.0 h1:5FwPDwsYHHDv663J70J6UQae6ptDk1Hx26xBMncpfms=
+github.com/thediveo/safe v0.9.0/go.mod h1:wLxCODMCRKlfaQGnA9CNhlXfQpVmWYrjTMusaq4rMX0=
 github.com/thediveo/success v1.0.3 h1:jaBpZ5ETfmCo9U3CRDtWPhtXQg3iW3beZH4ioLMR5RQ=
 github.com/thediveo/success v1.0.3/go.mod h1:K+8SXrNPdonCYg4iCTYGQ6dCvqjGiTtLs5ZTB5eEKTg=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=

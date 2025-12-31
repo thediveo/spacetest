@@ -35,6 +35,7 @@ import (
 type Spacer interface {
 	Subspace(*api.SubspaceRequest) api.Response
 	Room(*api.RoomsRequest) api.Response
+	Slog() *slog.Logger
 }
 
 // Serve services requests on the passed *uds.Conn until the client disconnects,
@@ -47,9 +48,9 @@ type Spacer interface {
 // “-ginkgo.v” when running tests.
 func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 	id := petname.Generate(2, "-")
-	slog.Info("spacer serving loop started", slog.String("spacer-id", id))
+	spacer.Slog().Info("spacer serving loop started", slog.String("spacer-id", id))
 	defer func() {
-		slog.Info("spacer serving loop terminated", slog.String("spacer-id", id))
+		spacer.Slog().Info("spacer serving loop terminated", slog.String("spacer-id", id))
 	}()
 
 	enc := gobmsg.NewEncoder()
@@ -59,7 +60,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// Check and exit if the context is done by now.
 		select {
 		case <-ctx.Done():
-			slog.Info("context cancelled", slog.String("spacer-id", id))
+			spacer.Slog().Info("context cancelled", slog.String("spacer-id", id))
 			return
 		default:
 		}
@@ -67,7 +68,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// with it. We set a read deadline so that we can check our context from
 		// time to time. If we hit the deadline that's fine, we simply restart.
 		if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-			slog.Error("cannot set deadline",
+			spacer.Slog().Error("cannot set deadline",
 				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
@@ -79,10 +80,10 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 			}
 			// https://go.dev/wiki/ErrorValueFAQ
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				slog.Info("client disconnected", slog.String("spacer-id", id))
+				spacer.Slog().Info("client disconnected", slog.String("spacer-id", id))
 				return
 			}
-			slog.Error("cannot receive",
+			spacer.Slog().Error("cannot receive",
 				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
@@ -92,13 +93,13 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// itself, but not a pointer to a request value. Gotcha.
 		var req api.Request
 		if err := dec.Decode(n, &req); err != nil {
-			slog.Error("cannot decode incoming request",
+			spacer.Slog().Error("cannot decode incoming request",
 				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
 		}
 		// handle the service request and get a response.
-		slog.Info("serving request",
+		spacer.Slog().Info("serving request",
 			slog.String("spacer-id", id),
 			slog.String("service", fmt.Sprintf("%T", req)))
 		var resp api.Response
@@ -108,7 +109,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		case *api.RoomsRequest:
 			resp = spacer.Room(req)
 		default:
-			slog.Error("unhandled request",
+			spacer.Slog().Error("unhandled request",
 				slog.String("spacer-id", id),
 				slog.String("type", fmt.Sprintf("%T", req)))
 			return
@@ -118,7 +119,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 		// https://pkg.go.dev/encoding/gob#example-package-Interface
 		msg, err := enc.Encode(&resp)
 		if err != nil {
-			slog.Error("cannot encode response",
+			spacer.Slog().Error("cannot encode response",
 				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
@@ -136,7 +137,7 @@ func Serve(ctx context.Context, conn *uds.Conn, spacer Spacer) {
 			_ = unix.Close(fd)
 		}
 		if err != nil {
-			slog.Error("cannot send",
+			spacer.Slog().Error("cannot send",
 				slog.String("spacer-id", id),
 				slog.String("err", err.Error()))
 			return
