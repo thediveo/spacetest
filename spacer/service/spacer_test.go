@@ -17,6 +17,7 @@ package service
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/thediveo/spacetest/spacer/api"
@@ -55,8 +56,10 @@ var _ = Describe("serving space", func() {
 		})
 
 		It("fails when unable to start new subspace service", func() {
-			sm := &Spacemaker{Exe: "/not-existing"}
+			var out strings.Builder
+			sm := &Spacemaker{Exe: "/not-existing", Stderr: &out}
 			Expect(sm.Subspace(&api.SubspaceRequest{Spaces: unix.CLONE_NEWUSER})).To(api.HaveFailed())
+			Expect(out.String()).To(MatchRegexp(`cannot start sub service.*fork/exec`))
 		})
 
 	})
@@ -87,14 +90,14 @@ var _ = Describe("serving space", func() {
 			if os.Getuid() == 0 {
 				Skip("root")
 			}
-			Expect(newNamespace(0)).Error().To(HaveOccurred())
+			Expect((&Spacemaker{}).newNamespace(0)).Error().To(HaveOccurred())
 		})
 
 		It("reports failure when not able to create new namespace", func() {
 			if os.Getuid() == 0 {
 				Skip("root")
 			}
-			Expect(newNamespace(unix.CLONE_NEWNET)).Error().To(HaveOccurred())
+			Expect((&Spacemaker{}).newNamespace(unix.CLONE_NEWNET)).Error().To(HaveOccurred())
 		})
 
 	})

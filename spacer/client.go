@@ -16,6 +16,7 @@ package spacer
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -38,9 +39,11 @@ import (
 //
 // Client cannot(!) be used concurrently.
 type Client struct {
-	conn *uds.Conn
-	enc  *gobmsg.Encoder
-	dec  *gobmsg.Decoder
+	conn   *uds.Conn
+	enc    *gobmsg.Encoder
+	dec    *gobmsg.Decoder
+	stdout io.Writer
+	stderr io.Writer
 }
 
 var (
@@ -71,8 +74,13 @@ func spacerServicePath() string {
 // or when the Close method of the returned client object is called.
 //
 // Make sure to call [gexec.CleanupBuildArtifacts] in your AfterSuite.
-func New(ctx context.Context) *Client {
+func New(ctx context.Context, opts ...Option) *Client {
 	gi.GinkgoHelper()
+
+	c := &Client{}
+	for _, opt := range opts {
+		g.Expect(opt(c)).To(g.Succeed(), "cannot apply option")
+	}
 
 	servicebinpath := spacerServicePath()
 
@@ -80,15 +88,18 @@ func New(ctx context.Context) *Client {
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot create connected unix domain socket pair")
 
 	go func() {
-		service.Serve(ctx, dupont, &service.Spacemaker{Exe: servicebinpath})
+		service.Serve(ctx, dupont, &service.Spacemaker{
+			Exe:    servicebinpath,
+			Stdout: c.stdout,
+			Stderr: c.stderr,
+		})
 		_ = dupont.Close()
 	}()
 
-	return &Client{
-		conn: dupond,
-		enc:  gobmsg.NewEncoder(),
-		dec:  gobmsg.NewDecoder(),
-	}
+	c.conn = dupond
+	c.enc = gobmsg.NewEncoder()
+	c.dec = gobmsg.NewDecoder()
+	return c
 }
 
 // Close the connection to the spacer service instance. This will cause the
@@ -122,9 +133,11 @@ func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
 	subconn, err := uds.NewUnixConn(resp.Conn, "subspace")
 	g.Expect(err).NotTo(g.HaveOccurred(), "subspace connection failure")
 	newclient := &Client{
-		conn: subconn,
-		enc:  gobmsg.NewEncoder(),
-		dec:  gobmsg.NewDecoder(),
+		conn:   subconn,
+		enc:    gobmsg.NewEncoder(),
+		dec:    gobmsg.NewDecoder(),
+		stdout: c.stdout,
+		stderr: c.stderr,
 	}
 
 	gi.DeferCleanup(func(userfd, pidfd int) {
