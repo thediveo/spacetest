@@ -120,6 +120,15 @@ var _ = Describe("spacer client", func() {
 		Expect(flags).To(Equal(namespaces(unix.CLONE_NEWNET | unix.CLONE_NEWIPC)))
 	})
 
+	// The following unit test sets up a network namespace in a child user
+	// namespace via a subspacer process, but then this subspacer process drops
+	// the reference to the network namespace as it passes the referencing fd to
+	// the client, our unit tests process. This test establishes that the
+	// network namespace is in fact still owned by the child user namespace and
+	// this can be seen from out perspective of the (parent) unit tests process.
+	//
+	// Note: this test does not actually test the spacer but instead the
+	// expected Linux kernel behavior; being kind of a meta test.
 	Context("namespace madness", func() {
 
 		var childusernsfd, netnsfd int
