@@ -51,7 +51,7 @@ import (
 // [NewTransient] and then [Execute], as it is not possible to re-associate the
 // current OS-level thread with the original (parent) PID namespace after
 // creating and switching into a new child PID namespace; the returned cleanup
-// function would fail and purposedly trigger a panic.
+// function would fail and purposely trigger a panic.
 //
 // Also, user namespaces cannot be entered with EnterTransient as the Linux
 // kernel does not allow a thread to re-enter one of the original (that is,
@@ -63,7 +63,7 @@ import (
 // [NewTransient] and then [Execute], as it is not possible to re-associate the
 // current OS-level thread with the original (parent) PID or time namespace
 // after creating and switching into a new child PID or time namespace; the
-// returned cleanup function would fail and purposedly trigger a panic.
+// returned cleanup function would fail and purposely trigger a panic.
 func EnterTransient(typ int) func() {
 	GinkgoHelper()
 
