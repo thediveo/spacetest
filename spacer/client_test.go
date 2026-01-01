@@ -134,6 +134,10 @@ var _ = Describe("spacer client", func() {
 		var childusernsfd, netnsfd int
 
 		BeforeEach(func() {
+			if os.Getuid() != 0 {
+				Skip("needs root")
+			}
+
 			By("creating a primary spacer client")
 			ctx, cancel := context.WithCancel(context.Background())
 			clnt := New(ctx, WithErr(GinkgoWriter))
