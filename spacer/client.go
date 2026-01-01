@@ -62,7 +62,7 @@ func spacerServicePath() string {
 	gi.By("building the spacer service binary")
 	var err error
 	spacerServiceBinary, err = gexec.BuildWithEnvironment(
-		"github.com/thediveo/spacetest/spacer/service/cmd",
+		"github.com/thediveo/spacetest/spacer/service/cmd/spacer-service",
 		[]string{"CGO_ENABLED=0"},
 		"-tags=usergo,netgo")
 	g.Expect(err).NotTo(g.HaveOccurred(), "cannot build spacer service binary")

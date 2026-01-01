@@ -20,12 +20,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/thediveo/ioctl"
+	"github.com/thediveo/safe"
+	"github.com/thediveo/spacetest"
+	"golang.org/x/sys/unix"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gleak"
 	. "github.com/thediveo/fdooze"
-	"github.com/thediveo/safe"
-	"golang.org/x/sys/unix"
+	. "github.com/thediveo/success"
 )
 
 var _ = Describe("spacer client", func() {
@@ -116,4 +120,74 @@ var _ = Describe("spacer client", func() {
 		Expect(flags).To(Equal(namespaces(unix.CLONE_NEWNET | unix.CLONE_NEWIPC)))
 	})
 
+	// The following unit test sets up a network namespace in a child user
+	// namespace via a subspacer process, but then this subspacer process drops
+	// the reference to the network namespace as it passes the referencing fd to
+	// the client, our unit tests process. This test establishes that the
+	// network namespace is in fact still owned by the child user namespace and
+	// this can be seen from out perspective of the (parent) unit tests process.
+	//
+	// Note: this test does not actually test the spacer but instead the
+	// expected Linux kernel behavior; being kind of a meta test.
+	Context("namespace madness", func() {
+
+		var childusernsfd, netnsfd int
+
+		BeforeEach(func() {
+			if os.Getuid() != 0 {
+				Skip("needs root")
+			}
+
+			By("creating a primary spacer client")
+			ctx, cancel := context.WithCancel(context.Background())
+			clnt := New(ctx, WithErr(GinkgoWriter))
+			DeferCleanup(func() {
+				By("cancelling context and closing primary spacer client")
+				cancel()
+				clnt.Close()
+			})
+
+			By("creating a child user namespace")
+			subclnt, spc := clnt.Subspace(true, false)
+			DeferCleanup(func() {
+				subclnt.Close()
+			})
+			childusernsfd = spc.User
+
+			By("creating a network namespace belonging to the child user namespace")
+			netnsfd = subclnt.NewTransient(unix.CLONE_NEWNET)
+			DeferCleanup(func() {
+				Expect(unix.Close(netnsfd)).To(Succeed())
+			})
+		})
+
+		It("correctly creates a network namespace owned by a child user namespace", func() {
+			Expect(spacetest.Type(netnsfd)).To(Equal(unix.CLONE_NEWNET))
+			ownerfd := Successful(ioctl.RetFd(netnsfd, NS_GET_USERNS))
+			defer func() {
+				Expect(unix.Close(ownerfd)).To(Succeed())
+			}()
+			Expect(spacetest.Ino(ownerfd, unix.CLONE_NEWUSER)).To(
+				Equal(spacetest.Ino(childusernsfd, unix.CLONE_NEWUSER)))
+			parentfd := Successful(ioctl.RetFd(ownerfd, NS_GET_PARENT))
+			defer func() {
+				Expect(unix.Close(parentfd)).To(Succeed())
+			}()
+			Expect(spacetest.Ino(parentfd, unix.CLONE_NEWUSER)).To(
+				Equal(spacetest.CurrentIno(unix.CLONE_NEWUSER)))
+		})
+
+	})
+
 })
+
+// Linux kernel [ioctl(2)] command for [namespace relationship queries].
+//
+// [ioctl(2)]: https://man7.org/linux/man-pages/man2/ioctl.2.html
+// [namespace relationship queries]: https://elixir.bootlin.com/linux/v6.2.11/source/include/uapi/linux/nsfs.h
+const _NSIO = 0xb7
+
+var (
+	NS_GET_USERNS = ioctl.IO(_NSIO, 0x1)
+	NS_GET_PARENT = ioctl.IO(_NSIO, 0x2)
+)

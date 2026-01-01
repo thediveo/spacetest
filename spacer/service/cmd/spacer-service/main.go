@@ -28,9 +28,9 @@ import (
 var _ = spacer.New // ... so that [spacer.Client] gets a proper hyperlink.
 
 func main() {
-	slog.Info("spacetest/spacer/service/cmd started",
+	slog.Info("spacetest/spacer/service/cmd/spacer-service started",
 		slog.Int("pid", os.Getpid()))
-	defer slog.Info("spacetest/spacer/service/cmd terminated",
+	defer slog.Info("spacetest/spacer/service/cmd/spacer-service terminated",
 		slog.Int("pid", os.Getpid()))
 
 	dupont, err := uds.NewUnixConn(3, "dupont")

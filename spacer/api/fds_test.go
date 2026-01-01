@@ -19,18 +19,18 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("auxillary fds", func() {
+var _ = Describe("auxiliary fds", func() {
 
 	It("preserves the original list if fd isn't open", func() {
 		var fd int
-		Expect(auxillaryFds(nil).borrow(&fd)).To(BeNil())
-		Expect(auxillaryFds{42}.borrow(&fd)).To(ConsistOf(42))
+		Expect(auxiliaryFds(nil).borrow(&fd)).To(BeNil())
+		Expect(auxiliaryFds{42}.borrow(&fd)).To(ConsistOf(42))
 	})
 
 	It("appends non-zero fds", func() {
 		fd1 := 42
 		fd2 := 666
-		Expect(auxillaryFds(nil).borrow(&fd1).borrow(&fd2)).To(ConsistOf(42, 666))
+		Expect(auxiliaryFds(nil).borrow(&fd1).borrow(&fd2)).To(ConsistOf(42, 666))
 	})
 
 })

@@ -56,7 +56,7 @@ func (s RoomsResponse) response() {}
 // replacing the original message fields with zero values so the fields don't
 // get transferred by gob. gob, not golb.
 func (s *RoomsResponse) EncodeFds() []int {
-	return auxillaryFds(nil).borrow(&s.Cgroup).
+	return auxiliaryFds(nil).borrow(&s.Cgroup).
 		borrow(&s.IPC).
 		borrow(&s.Mnt).
 		borrow(&s.Net).
@@ -65,7 +65,7 @@ func (s *RoomsResponse) EncodeFds() []int {
 }
 
 // DecodeFds distributes the passed file descriptors that were received as
-// auxillary data with a response message back into their corresponding message
+// auxiliary data with a response message back into their corresponding message
 // fields. DecodeFds closes any passed file descriptors it cannot make any sense
 // of.
 func (s *RoomsResponse) DecodeFds(fds []int) {

@@ -64,14 +64,14 @@ func (s SubspaceResponse) response() {}
 // replacing the original message fields with zero values so the fields don't
 // get transferred by gob.
 func (s *SubspaceResponse) EncodeFds() []int {
-	return auxillaryFds(nil).
+	return auxiliaryFds(nil).
 		borrow(&s.Conn).
 		borrow(&s.User).
 		borrow(&s.PID)
 }
 
 // DecodeFds distributes the passed file descriptors that were received as
-// auxillary data with a response message back into their corresponding message
+// auxiliary data with a response message back into their corresponding message
 // fields. DecodeFds closes any passed file descriptors it cannot make any sense
 // of.
 func (s *SubspaceResponse) DecodeFds(fds []int) {

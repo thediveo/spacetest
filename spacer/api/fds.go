@@ -14,16 +14,16 @@
 
 package api
 
-// auxillaryFds is a list of open file descriptors, to be transferred as
-// auxillary data with some message.
-type auxillaryFds []int
+// auxiliaryFds is a list of open file descriptors, to be transferred as
+// auxiliary data with some message.
+type auxiliaryFds []int
 
 // borrow checks if a namespace fd is open (>0) and then appends it to the list
-// of file descriptors to transmit as auxillary data as well as zero'ing the fd
+// of file descriptors to transmit as auxiliary data as well as zero'ing the fd
 // value in its original place (as we don't want to transmit it twice in-band
 // and out-of-band). If the referenced fd isn't open, then the original fd list
 // will be returned unchanged.
-func (f auxillaryFds) borrow(fd *int) auxillaryFds {
+func (f auxiliaryFds) borrow(fd *int) auxiliaryFds {
 	if *fd <= 0 {
 		return f
 	}
