@@ -17,6 +17,11 @@ jobs:
         go: [ 'stable', 'oldstable' ]
 
     steps:
+      - name: switch off security cargo-cult "fences"
+        run: |
+          sudo sysctl -w kernel.unprivileged_userns_clone=1
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Set up Go ${{matrix.go}}
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:

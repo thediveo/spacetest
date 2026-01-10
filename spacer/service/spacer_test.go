@@ -74,7 +74,7 @@ var _ = Describe("serving space", func() {
 
 		It("reports when powerless", func() {
 			if os.Getuid() == 0 {
-				Skip("no root")
+				Skip("needs non-root")
 			}
 			sm := &Spacemaker{}
 			Expect(sm.Room(&api.RoomsRequest{
@@ -88,14 +88,14 @@ var _ = Describe("serving space", func() {
 
 		It("reports failure when not able to determine current namespace", func() {
 			if os.Getuid() == 0 {
-				Skip("root")
+				Skip("needs non-root")
 			}
 			Expect((&Spacemaker{}).newNamespace(0)).Error().To(HaveOccurred())
 		})
 
 		It("reports failure when not able to create new namespace", func() {
 			if os.Getuid() == 0 {
-				Skip("root")
+				Skip("needs non-root")
 			}
 			Expect((&Spacemaker{}).newNamespace(unix.CLONE_NEWNET)).Error().To(HaveOccurred())
 		})

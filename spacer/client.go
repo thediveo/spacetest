@@ -113,16 +113,22 @@ func (c *Client) Close() {
 
 // Subspace returns a new client as well as new user and/or PID child
 // namespaces. The user and/or PID namespaces are children of the connected
-// service's user and PID namespaces. For the “initial” client returned by [New]
-// the parent user and PID namespaces are those of the test process's user and
-// PID namespaces. For clients returned from Subspace calls the parent PID and
-// user namespaces are those of the particular service process's namespaces.
+// service's user and PID namespaces.
+//
+// Calling Subspace on an “initial” client returned by [New] will create the
+// user and/or PID child namespaces inside the callers user and PID namespaces.
+// In contrast, calling Subspace on a client that was obtained by a Subspace
+// call will create the user and/or PID child namespaces inside the user/PID
+// namespaces of the service referenced by that client.
 //
 // Subspace also schedules a DeferCleanup to automatically close the open file
 // descriptors of the namespaces returned when the current node ends, where
 // Subspace was called. Callers thus must not close the returned file
 // descriptors themselves. Callers are free to [unix.Dup] any
 // namespace-referencing file descriptor to break out of this fd lifecycle.
+//
+// In order to allow creating any further namespaces inside a “subspace” the
+// calling user with his group get mapped to the root user and group.
 func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
 	gi.GinkgoHelper()
 

@@ -79,7 +79,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	}()
 	if err != nil {
 		s.Slog().Error("cannot create unix domain socket pair",
-			slog.Int("PID", os.Getgid()),
+			slog.Int("PID", os.Getpid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to create unix domain socket pair, reason: " + err.Error()}
 	}
@@ -90,7 +90,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	dupontf, err := dupont.File()
 	if err != nil {
 		s.Slog().Error("cannot fetch service *os.File",
-			slog.Int("PID", os.Getgid()),
+			slog.Int("PID", os.Getpid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch service *os.File, reason: " + err.Error()}
 	}
@@ -104,19 +104,23 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	subspace.ExtraFiles = []*os.File{dupontf}
 	subspace.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
-		// We additionally need to map at least our root UID and root GUID
-		// between parent and child user namespace as otherwise we won't be able
-		// to create other namespaces inside the child user namespace.
+		// We additionally need to map at least our current UID and current GUID
+		// to become root/root in the child user namespace as otherwise we won't
+		// be able to create other namespaces inside the new child user
+		// namespace.
+		//
+		// See also forkexec_test.go in this package for unit tests checking
+		// this Linux system behavior.
 		UidMappings: []syscall.SysProcIDMap{
 			{
-				HostID:      0,
+				HostID:      os.Getuid(),
 				ContainerID: 0,
 				Size:        1,
 			},
 		},
 		GidMappings: []syscall.SysProcIDMap{
 			{
-				HostID:      0,
+				HostID:      os.Getgid(),
 				ContainerID: 0,
 				Size:        1,
 			},
@@ -125,7 +129,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	s.Slog().Info("starting new subspace service instance")
 	if err := subspace.Start(); err != nil {
 		s.Slog().Error("cannot start sub service",
-			slog.Int("PID", os.Getgid()),
+			slog.Int("PID", os.Getpid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to start sub service, reason: " + err.Error()}
 	}
@@ -142,7 +146,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	dupondf, err := dupond.File()
 	if err != nil {
 		s.Slog().Error("cannot fetch client *os.File",
-			slog.Int("PID", os.Getgid()),
+			slog.Int("PID", os.Getpid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch client *os.File, reason: " + err.Error()}
 	}
@@ -151,7 +155,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	connfd, err := unix.Dup(int(dupondf.Fd()))
 	if err != nil {
 		s.Slog().Error("cannot fetch client fd",
-			slog.Int("PID", os.Getgid()),
+			slog.Int("PID", os.Getpid()),
 			slog.String("err", err.Error()))
 		return &api.ErrorResponse{Reason: "failed to fetch client fd, reason: " + err.Error()}
 	}
@@ -162,7 +166,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		if err != nil {
 			_ = unix.Close(connfd)
 			s.Slog().Error("cannot fetch new user namespace",
-				slog.Int("PID", os.Getgid()),
+				slog.Int("PID", os.Getpid()),
 				slog.String("err", err.Error()))
 			return &api.ErrorResponse{Reason: "failed to determine new user namespace, reason: " + err.Error()}
 		}
@@ -173,7 +177,7 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 			_ = unix.Close(userfd)
 			_ = unix.Close(connfd)
 			s.Slog().Error("cannot fetch new PID namespace",
-				slog.Int("PID", os.Getgid()),
+				slog.Int("PID", os.Getpid()),
 				slog.String("err", err.Error()))
 			return &api.ErrorResponse{Reason: "failed to determine new PID namespace, reason: " + err.Error()}
 		}

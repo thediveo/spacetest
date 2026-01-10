@@ -34,23 +34,19 @@ import (
 
 var _ = Describe("spacer client", func() {
 
-	When("working with the spacer service", func() {
-
-		BeforeEach(func() {
-			if os.Getuid() != 0 {
-				Skip("needs root")
-			}
-
-			goodfds := Filedescriptors()
-			goodgos := Goroutines()
-			DeferCleanup(func() {
-				Eventually(Goroutines).Within(2 * time.Second).ProbeEvery(100 * time.Millisecond).
-					ShouldNot(HaveLeaked(goodgos))
-				Expect(Filedescriptors()).NotTo(HaveLeakedFds(goodfds))
-			})
+	BeforeEach(func() {
+		goodfds := Filedescriptors()
+		goodgos := Goroutines()
+		DeferCleanup(func() {
+			Eventually(Goroutines).Within(2 * time.Second).ProbeEvery(100 * time.Millisecond).
+				ShouldNot(HaveLeaked(goodgos))
+			Expect(Filedescriptors()).NotTo(HaveLeakedFds(goodfds))
 		})
+	})
 
-		It("starts a spacer and creates a subspace", func(ctx context.Context) {
+	When("being any arbitrary user", func() {
+
+		It("starts a spacer and creates a subspace, then makes room inside it", func(ctx context.Context) {
 			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
 			cl := New(ctx, WithOut(w), WithErr(w))
@@ -61,16 +57,29 @@ var _ = Describe("spacer client", func() {
 			Expect(subcl).NotTo(BeNil())
 			Expect(spc.PID).To(BeNumerically(">", 0))
 			Expect(spc.User).To(BeNumerically(">", 0))
+
+			nsfd := subcl.NewTransient(unix.CLONE_NEWNET)
+			Expect(nsfd).To(BeNumerically(">", 0))
 		})
 
-		It("starts a spacer and creates namespaces", func(ctx context.Context) {
+	})
+
+	When("working with the spacer service as root", func() {
+
+		BeforeEach(func() {
+			if os.Getuid() != 0 {
+				Skip("needs root")
+			}
+		})
+
+		It("starts a spacer and creates flat namespaces", func(ctx context.Context) {
 			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
 			cl := New(ctx, WithOut(w), WithErr(w))
 			defer cl.Close()
 
 			rooms := cl.Rooms(true, true, true, true, true, true)
-			Eventually(out.String()).Within(2 * time.Second).To(
+			Eventually(out.String).Within(2 * time.Second).To(
 				MatchRegexp(`"serving request" .* service=\*api.RoomsRequest`))
 
 			Expect(rooms.Cgroup).To(BeNumerically(">", 0))
@@ -134,10 +143,6 @@ var _ = Describe("spacer client", func() {
 		var childusernsfd, netnsfd int
 
 		BeforeEach(func() {
-			if os.Getuid() != 0 {
-				Skip("needs root")
-			}
-
 			By("creating a primary spacer client")
 			ctx, cancel := context.WithCancel(context.Background())
 			clnt := New(ctx, WithErr(GinkgoWriter))
