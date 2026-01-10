@@ -104,19 +104,23 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	subspace.ExtraFiles = []*os.File{dupontf}
 	subspace.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
-		// We additionally need to map at least our root UID and root GUID
-		// between parent and child user namespace as otherwise we won't be able
-		// to create other namespaces inside the child user namespace.
+		// We additionally need to map at least our current UID and current GUID
+		// to become root/root in the child user namespace as otherwise we won't
+		// be able to create other namespaces inside the new child user
+		// namespace.
+		//
+		// See also forkexec_test.go in this package for unit tests checking
+		// this Linux system behavior.
 		UidMappings: []syscall.SysProcIDMap{
 			{
-				HostID:      0,
+				HostID:      os.Getuid(),
 				ContainerID: 0,
 				Size:        1,
 			},
 		},
 		GidMappings: []syscall.SysProcIDMap{
 			{
-				HostID:      0,
+				HostID:      os.Getgid(),
 				ContainerID: 0,
 				Size:        1,
 			},
