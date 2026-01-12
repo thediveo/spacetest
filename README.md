@@ -6,7 +6,7 @@
 [![goroutines](https://img.shields.io/badge/go%20routines-not%20leaking-success)](https://pkg.go.dev/github.com/onsi/gomega/gleak)
 [![file descriptors](https://img.shields.io/badge/file%20descriptors-not%20leaking-success)](https://pkg.go.dev/github.com/thediveo/fdooze)
 [![Go Report Card](https://goreportcard.com/badge/github.com/thediveo/spacetest)](https://goreportcard.com/report/github.com/thediveo/spacetest)
-![Coverage](https://img.shields.io/badge/Coverage-90.1%25-brightgreen)
+![Coverage](https://img.shields.io/badge/Coverage-88.8%25-brightgreen)
 
 A small package to help with creating transient Linux namespaces in unit
 testing, without having to deal with the tedious details of proper and robust
