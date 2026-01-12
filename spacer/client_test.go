@@ -16,6 +16,7 @@ package spacer
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -44,7 +45,7 @@ var _ = Describe("spacer client", func() {
 		})
 	})
 
-	When("being any arbitrary user", func() {
+	When("being any arbitrary user (root or !root)", func() {
 
 		It("starts a spacer and creates a subspace, then makes room inside it", func(ctx context.Context) {
 			var out safe.Buffer
@@ -53,6 +54,11 @@ var _ = Describe("spacer client", func() {
 			defer cl.Close()
 
 			subcl, spc := cl.Subspace(true, true)
+			Expect(subcl.PID()).NotTo(BeZero())
+			Expect(subcl.PID()).NotTo(Equal(os.Getpid()))
+			Expect(string(Successful(
+				os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", subcl.PID()))))).
+				To(HaveSuffix("/spacer-service\x00"))
 
 			Expect(subcl).NotTo(BeNil())
 			Expect(spc.PID).To(BeNumerically(">", 0))
@@ -184,6 +190,20 @@ var _ = Describe("spacer client", func() {
 
 	})
 
+	It("returns different subspace service PIDs", func(ctx context.Context) {
+		clnt := New(ctx, WithOut(GinkgoWriter), WithErr(GinkgoWriter))
+		defer clnt.Close()
+		Expect(clnt.PID()).To(BeZero())
+		sub1, _ := clnt.Subspace(true, true)
+		sub2, _ := sub1.Subspace(false, true)
+		Expect(sub1.PID()).To(And(
+			Not(BeZero()),
+			Not(Equal(os.Getpid())),
+			Not(Equal(sub2.PID()))))
+		Expect(sub2.PID()).To(And(
+			Not(BeZero()),
+			Not(Equal(os.Getpid()))))
+	})
 })
 
 // Linux kernel [ioctl(2)] command for [namespace relationship queries].

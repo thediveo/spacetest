@@ -76,10 +76,18 @@ var _ = Describe("serving space", func() {
 			if os.Getuid() == 0 {
 				Skip("needs non-root")
 			}
-			sm := &Spacemaker{}
+
+			defer slog.SetDefault(slog.Default())
+			var out safe.Buffer
+			slog.SetDefault(slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{})))
+
+			sm := &Spacemaker{Stdout: &out, Stderr: &out}
 			Expect(sm.Room(&api.RoomsRequest{
 				Spaces: unix.CLONE_NEWNET | unix.CLONE_NEWUTS,
 			})).To(api.HaveFailed())
+			Eventually(out.String).Within(2 * time.Second).ProbeEvery(10 * time.Millisecond).
+				Should(MatchRegexp(`(?ms)msg="cannot create new namespace" type=net err="operation not permitted"` +
+					`.*msg="cannot create new namespace" type=uts err="operation not permitted"`))
 		})
 
 	})
@@ -90,14 +98,14 @@ var _ = Describe("serving space", func() {
 			if os.Getuid() == 0 {
 				Skip("needs non-root")
 			}
-			Expect((&Spacemaker{}).newNamespace(0)).Error().To(HaveOccurred())
+			Expect((&Spacemaker{Stdout: GinkgoWriter, Stderr: GinkgoWriter}).newNamespace(0)).Error().To(HaveOccurred())
 		})
 
 		It("reports failure when not able to create new namespace", func() {
 			if os.Getuid() == 0 {
 				Skip("needs non-root")
 			}
-			Expect((&Spacemaker{}).newNamespace(unix.CLONE_NEWNET)).Error().To(HaveOccurred())
+			Expect((&Spacemaker{Stdout: GinkgoWriter, Stderr: GinkgoWriter}).newNamespace(unix.CLONE_NEWNET)).Error().To(HaveOccurred())
 		})
 
 	})

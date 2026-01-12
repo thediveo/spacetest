@@ -44,6 +44,7 @@ type Client struct {
 	dec    *gobmsg.Decoder
 	stdout io.Writer
 	stderr io.Writer
+	pid    int
 }
 
 var (
@@ -111,6 +112,15 @@ func (c *Client) Close() {
 	_ = c.conn.Close()
 }
 
+// PID returns the PID of the connected spacer service instance, or 0 if the
+// service instance is in the calling process' memory.
+//
+// A Client returned by [New] will always report the PID as 0, as opposed to
+// a Client returned by [Client.Subspace].
+func (c *Client) PID() int {
+	return c.pid
+}
+
 // Subspace returns a new client as well as new user and/or PID child
 // namespaces. The user and/or PID namespaces are children of the connected
 // service's user and PID namespaces.
@@ -136,14 +146,21 @@ func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
 		Spaces: uint64(namespaces(0).ifrequested(user, unix.CLONE_NEWUSER).
 			ifrequested(pid, unix.CLONE_NEWPID)),
 	}, "subspace")
+	defer func() { _ = unix.Close(resp.PIDFd) }()
+
 	subconn, err := uds.NewUnixConn(resp.Conn, "subspace")
 	g.Expect(err).NotTo(g.HaveOccurred(), "subspace connection failure")
+
+	subspacerPID, err := PIDfromPIDFd(resp.PIDFd)
+	g.Expect(err).NotTo(g.HaveOccurred(), "can't determine subspace service PID")
+
 	newclient := &Client{
 		conn:   subconn,
 		enc:    gobmsg.NewEncoder(),
 		dec:    gobmsg.NewDecoder(),
 		stdout: c.stdout,
 		stderr: c.stderr,
+		pid:    subspacerPID,
 	}
 
 	gi.DeferCleanup(func(userfd, pidfd int) {

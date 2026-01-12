@@ -103,7 +103,9 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	subspace.Stderr = cmp.Or(s.Stderr, io.Writer(os.Stderr))
 	subspace.ExtraFiles = []*os.File{dupontf}
 	subspace.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: uintptr(req.Spaces & uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)),
+		Cloneflags: uintptr(req.Spaces&uint64(unix.CLONE_NEWUSER|unix.CLONE_NEWPID)) | unix.CLONE_NEWNS,
+	}
+	if req.Spaces&unix.CLONE_NEWUSER != 0 {
 		// We additionally need to map at least our current UID and current GUID
 		// to become root/root in the child user namespace as otherwise we won't
 		// be able to create other namespaces inside the new child user
@@ -111,20 +113,20 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		//
 		// See also forkexec_test.go in this package for unit tests checking
 		// this Linux system behavior.
-		UidMappings: []syscall.SysProcIDMap{
+		subspace.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
 			{
 				HostID:      os.Getuid(),
 				ContainerID: 0,
 				Size:        1,
 			},
-		},
-		GidMappings: []syscall.SysProcIDMap{
+		}
+		subspace.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
 			{
 				HostID:      os.Getgid(),
 				ContainerID: 0,
 				Size:        1,
 			},
-		},
+		}
 	}
 	s.Slog().Info("starting new subspace service instance")
 	if err := subspace.Start(); err != nil {
@@ -174,7 +176,9 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 	if req.Spaces&unix.CLONE_NEWPID != 0 {
 		pidfd, err = unix.Open(fmt.Sprintf("/proc/%d/ns/pid", subspace.Process.Pid), os.O_RDONLY, 0)
 		if err != nil {
-			_ = unix.Close(userfd)
+			if userfd > 0 {
+				_ = unix.Close(userfd)
+			}
 			_ = unix.Close(connfd)
 			s.Slog().Error("cannot fetch new PID namespace",
 				slog.Int("PID", os.Getpid()),
@@ -183,8 +187,24 @@ func (s *Spacemaker) Subspace(req *api.SubspaceRequest) api.Response {
 		}
 	}
 
+	procidfd, err := unix.PidfdOpen(subspace.Process.Pid, 0)
+	if err != nil {
+		if pidfd > 0 {
+			_ = unix.Close(pidfd)
+		}
+		if userfd > 0 {
+			_ = unix.Close(userfd)
+		}
+		_ = unix.Close(connfd)
+		s.Slog().Error("cannot get PID fd",
+			slog.Int("PID", os.Getpid()),
+			slog.String("err", err.Error()))
+		return &api.ErrorResponse{Reason: "cannot get PID fd, reason: " + err.Error()}
+	}
+
 	return &api.SubspaceResponse{
-		Conn: connfd,
+		Conn:  connfd,
+		PIDFd: procidfd,
 		Subspaces: api.Subspaces{
 			User: userfd,
 			PID:  pidfd,

@@ -21,12 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/thediveo/safe"
 	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gleak"
-	"github.com/thediveo/safe"
 )
 
 // Sometimes, you have to (unit) test the expected Linux system behavior, as
