@@ -95,8 +95,8 @@ var _ = Describe("...", func() {
 
 		subclnt, subspc := spcclnt.Subspace(true, true)
 		DeferCleanup(func() {
-			_ = unix.Close(subspc.PID)
-			_ = unix.Close(subspc.User)
+            // Note, you don't need to close the returned namespace fd(s), as these will be
+            // automatically closed using their own DeferCleanup scheduled by Subspace().
 			subclnt.Close()
 		})
         // ...
