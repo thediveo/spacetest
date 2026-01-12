@@ -36,7 +36,8 @@ type SubspaceRequest struct {
 // anymore. Closing the connection fd will also terminate the connected subspace
 // service; sub-subspace services will not be affected.
 type SubspaceResponse struct {
-	Conn int // fd of client unix domain socket
+	Conn  int // fd of client unix domain socket
+	PIDFd int // PID fd for the serving process
 	Subspaces
 }
 
@@ -66,6 +67,7 @@ func (s SubspaceResponse) response() {}
 func (s *SubspaceResponse) EncodeFds() []int {
 	return auxiliaryFds(nil).
 		borrow(&s.Conn).
+		borrow(&s.PIDFd).
 		borrow(&s.User).
 		borrow(&s.PID)
 }
@@ -76,7 +78,8 @@ func (s *SubspaceResponse) EncodeFds() []int {
 // of.
 func (s *SubspaceResponse) DecodeFds(fds []int) {
 	s.Conn = fds[0]
-	for _, fd := range fds[1:] {
+	s.PIDFd = fds[1]
+	for _, fd := range fds[2:] {
 		switch typ, _ := unix.IoctlRetInt(fd, spacetest.NS_GET_NSTYPE); typ {
 		case unix.CLONE_NEWUSER:
 			s.User = fd

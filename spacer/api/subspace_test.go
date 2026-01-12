@@ -37,19 +37,22 @@ var _ = Describe("subspace", func() {
 
 		It("transfers subspace response fds out-of-band", func() {
 			fd1 := Successful(unix.Open(".", unix.O_RDONLY, 0))
-			defer func() { _ = unix.Close(fd1) }()
+			fd2 := Successful(unix.Open(".", unix.O_RDONLY, 0))
+			defer func() { _ = unix.Close(fd1); _ = unix.Close(fd2) }()
 			resp := &SubspaceResponse{
-				Conn: fd1,
+				Conn:  fd1,
+				PIDFd: fd2,
 				Subspaces: Subspaces{
 					User: spacetest.Current(unix.CLONE_NEWUSER),
 					PID:  spacetest.Current(unix.CLONE_NEWPID),
 				},
 			}
 			fds := resp.EncodeFds()
-			Expect(fds).To(HaveLen(3))
+			Expect(fds).To(HaveLen(4))
 			Expect(*resp).To(BeZero())
 			resp.DecodeFds(fds)
 			Expect(resp.Conn).To(Equal(fd1))
+			Expect(resp.PIDFd).To(Equal(fd2))
 			Expect(spacetest.Type(resp.User)).To(Equal(unix.CLONE_NEWUSER))
 			Expect(spacetest.Type(resp.PID)).To(Equal(unix.CLONE_NEWPID))
 		})
@@ -59,10 +62,13 @@ var _ = Describe("subspace", func() {
 			defer func() { _ = unix.Close(fd1) }()
 			fd2 := Successful(unix.Open(".", unix.O_RDONLY, 0))
 			defer func() { _ = unix.Close(fd2) }()
+			fd3 := Successful(unix.Open(".", unix.O_RDONLY, 0))
+			defer func() { _ = unix.Close(fd3) }()
 
 			var resp SubspaceResponse
-			resp.DecodeFds([]int{fd1, fd2})
+			resp.DecodeFds([]int{fd1, fd2, fd3})
 			Expect(resp.Conn).To(Equal(fd1))
+			Expect(resp.PIDFd).To(Equal(fd2))
 			Expect(resp.Subspaces).To(BeZero())
 		})
 

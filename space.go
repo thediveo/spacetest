@@ -35,8 +35,8 @@ type Reference interface{ ~int | ~string }
 // [namespace relationship queries]: https://elixir.bootlin.com/linux/v6.2.11/source/include/uapi/linux/nsfs.h
 const _NSIO = 0xb7
 
-// Returns the type of namespace CLONE_NEW* value referred to by a file
-// descriptor.
+// NS_GET_NSTYPE defines the [unix.IoctlRetInt] request code that returns the
+// type of namespace CLONE_NEW* value referred to by a file descriptor.
 var NS_GET_NSTYPE = ioctl.IO(_NSIO, 0x3) //nolint:godoclint // out of touch
 
 // Avoid problems that would happen when we accidentally unshare the initial
