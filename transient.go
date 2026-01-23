@@ -82,7 +82,7 @@ func EnterTransient(typ int) func() {
 	Expect(err).NotTo(HaveOccurred(),
 		"cannot determine current %s namespace from procfs", name)
 	Expect(unix.Unshare(typ)).To(Succeed(),
-		"cannot create new %s namespace", typ)
+		"cannot create new %s namespace", Name(typ))
 
 	// Our cleanup cannot be DeferCleanup'ed, because we need to restore the current
 	// locked go routine, so that the defer rollback sequence is kept correct.
