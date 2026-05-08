@@ -73,6 +73,7 @@ func Execute(fn func(), nsfd int, nsfds ...int) {
 //
 // If anything fails, this will automatically fail the current test.
 func goInAndOut(fn func(), othernsfds ...int) {
+	GinkgoHelper()
 	runtime.LockOSThread()
 
 	var callersNamespaces []int
@@ -135,6 +136,7 @@ func goInAndOut(fn func(), othernsfds ...int) {
 //
 // If anything fails, goSeparate will automatically fail the current test.
 func goSeparate(fn func(), mntnsfd int, othernsfds ...int) {
+	GinkgoHelper()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
