@@ -18,7 +18,6 @@
         "go.testFlags": [
             "-v",
             "-race",
-            "--",
             "-ginkgo.v",
             "-ginkgo.no-color"
         ],

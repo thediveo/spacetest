@@ -16,10 +16,7 @@ package bindmount
 
 import (
 	"os"
-	"strconv"
 	"time"
-
-	"github.com/thediveo/spacetest/netns"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,7 +24,7 @@ import (
 	. "github.com/thediveo/fdooze"
 )
 
-var _ = Describe("bind-mounting namespaces", func() {
+var _ = Describe("listing nsfs type mounts", func() {
 
 	BeforeEach(func() {
 		if os.Getuid() != 0 {
@@ -42,31 +39,30 @@ var _ = Describe("bind-mounting namespaces", func() {
 		})
 	})
 
-	It("bind-mounts a namespace fd", func() {
-		netnsfd := netns.NewTransient()
-		bm := NewTransient(netnsfd)
-		Expect(AllNsfsMounts()).To(ContainElement(bm))
-		Expect(netns.Ino(bm)).To(Equal(netns.Ino(netnsfd)))
-	})
-
-	It("bind-mounts a namespace path", func() {
-		netnsfd := netns.NewTransient()
-		ref := "/proc/thread-self/fd/" + strconv.FormatInt(int64(netnsfd), 10)
-		bm := NewTransient(ref)
-		Expect(AllNsfsMounts()).To(ContainElement(bm))
-		Expect(netns.Ino(bm)).To(Equal(netns.Ino(netnsfd)))
-	})
-
-	It("doesn't bind mount an unsuitable fd reference", func() {
+	It("fails the spec if the path is not readable", func() {
 		Expect(InterceptGomegaFailure(func() {
-			_ = NewTransient(0)
-		})).To(MatchError(MatchRegexp(`(?s)cannot determine type .* inappropriate ioctl`)))
+			for range AllNsfsMountsPath("/foobar") {
+			}
+		})).To(MatchError(ContainSubstring("no such file or directory")))
 	})
 
-	It("doesn't bind mount an invalid string reference", func() {
-		Expect(InterceptGomegaFailure(func() {
-			_ = NewTransient("/proc/self")
-		})).To(MatchError(MatchRegexp(`(?s)cannot determine type .* inappropriate ioctl`)))
+	It("produces only correct nsfs bind mounts", func() {
+		Expect(AllNsfsMountsPath("./_testdata/mountinfo")).To(ConsistOf("/tmp/bindmount"))
+	})
+
+	It("aborts the iterator", func() {
+		Expect(AllNsfsMountsPath("./_testdata/mountinfo-multi")).To(HaveLen(2))
+		count := 0
+		for range AllNsfsMountsPath("./_testdata/mountinfo-multi") {
+			count++
+			break
+		}
+		Expect(count).To(Equal(1))
+	})
+
+	It("iterates or not", func() {
+		for range AllNsfsMounts() {
+		}
 	})
 
 })

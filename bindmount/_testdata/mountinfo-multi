@@ -1,0 +1,2 @@
+1 2 3:4 /rude /tmp/bindmount ro,nosuid,nodev,noexec,relative - nsfs /foo
+1 2 3:4 /rude /tmp/bindmount2 ro,nosuid,nodev,noexec,relative - nsfs /foo
