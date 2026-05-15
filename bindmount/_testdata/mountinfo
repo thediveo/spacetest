@@ -1,0 +1,5 @@
+1 2 3:4
+1 2 3:4 - nsfs /tmp/broken
+1 2 3:4 /rude - nsfs /tmp/broken
+1 2 3:4 /rude /dev/fools ro,nosuid,nodev,noexec,relative - foolfs /foo
+1 2 3:4 /rude /tmp/bindmount ro,nosuid,nodev,noexec,relative - nsfs /foo
