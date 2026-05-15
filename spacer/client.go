@@ -20,16 +20,18 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest/spacer/api"
+	"github.com/thediveo/spacetest/spacer/gobmsg"
+	"github.com/thediveo/spacetest/spacer/service"
+	"github.com/thediveo/spacetest/uds"
+
 	gi "github.com/onsi/ginkgo/v2"
 	g "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gcustom"
 	"github.com/onsi/gomega/gexec"
 	"github.com/onsi/gomega/types"
-	"github.com/thediveo/spacetest/spacer/api"
-	"github.com/thediveo/spacetest/spacer/gobmsg"
-	"github.com/thediveo/spacetest/spacer/service"
-	"github.com/thediveo/spacetest/uds"
-	"golang.org/x/sys/unix"
 )
 
 // Client connects to exactly one spacer service instance, which might be

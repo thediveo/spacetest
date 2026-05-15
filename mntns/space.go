@@ -15,8 +15,9 @@
 package mntns
 
 import (
-	"github.com/thediveo/spacetest"
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest"
 
 	gi "github.com/onsi/ginkgo/v2"
 )

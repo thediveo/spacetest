@@ -18,11 +18,11 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/thediveo/caps"
 	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/thediveo/caps"
 	. "github.com/thediveo/success"
 )
 

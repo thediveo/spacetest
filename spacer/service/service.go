@@ -25,10 +25,11 @@ import (
 	"time"
 
 	petname "github.com/dustinkirkland/golang-petname"
+	"golang.org/x/sys/unix"
+
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/spacer/gobmsg"
 	"github.com/thediveo/spacetest/uds"
-	"golang.org/x/sys/unix"
 )
 
 // Spacer services the spacer API.

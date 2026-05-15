@@ -15,8 +15,9 @@
 package api
 
 import (
-	"github.com/thediveo/spacetest"
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest"
 )
 
 // SubspaceRequest indicates which hierarchical namespaces to create, as the

@@ -24,10 +24,11 @@ import (
 	"runtime"
 	"syscall"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/thediveo/spacetest"
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/uds"
-	"golang.org/x/sys/unix"
 )
 
 const validSpaces = unix.CLONE_NEWCGROUP |

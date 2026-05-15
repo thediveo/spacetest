@@ -37,7 +37,7 @@ const _NSIO = 0xb7
 
 // NS_GET_NSTYPE defines the [unix.IoctlRetInt] request code that returns the
 // type of namespace CLONE_NEW* value referred to by a file descriptor.
-var NS_GET_NSTYPE = ioctl.IO(_NSIO, 0x3) //nolint:godoclint // out of touch
+var NS_GET_NSTYPE = ioctl.IO(_NSIO, 0x3)
 
 // Avoid problems that would happen when we accidentally unshare the initial
 // thread, so we lock it here, thus ensuring that other Go routines (and

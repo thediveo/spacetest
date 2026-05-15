@@ -15,8 +15,9 @@
 package netns
 
 import (
-	"github.com/thediveo/spacetest"
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck // ST1001 rule does not apply
 )
