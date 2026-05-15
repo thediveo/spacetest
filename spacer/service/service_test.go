@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/thediveo/safe"
+
 	"github.com/thediveo/spacetest/spacer/api"
 	"github.com/thediveo/spacetest/uds"
 

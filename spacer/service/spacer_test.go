@@ -20,8 +20,9 @@ import (
 	"time"
 
 	"github.com/thediveo/safe"
-	"github.com/thediveo/spacetest/spacer/api"
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest/spacer/api"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

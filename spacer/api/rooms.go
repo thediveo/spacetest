@@ -15,8 +15,9 @@
 package api
 
 import (
-	"github.com/thediveo/spacetest"
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest"
 )
 
 // RoomsRequest requests new namespaces of the types cgroup, IPC, mnt, net, time,

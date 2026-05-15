@@ -19,11 +19,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/thediveo/spacetest/spacer/service"
-	"github.com/thediveo/spacetest/uds"
 	"golang.org/x/sys/unix"
 
 	"github.com/thediveo/spacetest/spacer"
+	"github.com/thediveo/spacetest/spacer/service"
+	"github.com/thediveo/spacetest/uds"
 )
 
 var _ = spacer.New // ... so that [spacer.Client] gets a proper hyperlink.
