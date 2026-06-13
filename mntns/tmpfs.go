@@ -1,4 +1,4 @@
-// Copyright 2025 Harald Albrecht.
+// Copyright 2026 Harald Albrecht.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,29 +15,32 @@
 package mntns
 
 import (
+	"fmt"
+
 	"golang.org/x/sys/unix"
+
+	"github.com/thediveo/spacetest/units"
 
 	gi "github.com/onsi/ginkgo/v2"
 	g "github.com/onsi/gomega"
 )
 
-// MountSysfsRO mounts a new “sysfs” instance read-only onto “/sys” when the caller
-// is in a new and transient mount namespace. Otherwise, MountSysfsRO will fail
-// the current test.
-func MountSysfsRO() {
+// MountTmpfs mounts a new tmpfs instance at /tmp with the specified capacity.
+// See [MountTmpfsOn] for further details.
+func MountTmpfs(size units.Capacity) { MountTmpfsOn("/tmp", size) }
+
+// MountTmpfsOn mounts a new tmpfs instance at the specified path with the
+// specified capacity. The size is in bytes. The tmpfs is mounted with
+// MS_RELATIME flags and “inode64” option.
+func MountTmpfsOn(target string, size units.Capacity) {
 	gi.GinkgoHelper()
 
-	// Ensure that we're not still in the process's original mount namespace, as
-	// otherwise we would overmount the host's /sysfs.
-	g.Expect(CurrentIno()).NotTo(g.Equal(Ino("/proc/self/ns/mnt")),
-		"current mount namespace must not be the process's original mount namespace")
-
 	g.Expect(unix.Mount(
-		"none",
-		"/sys",
-		"sysfs",
-		unix.MS_RDONLY|unix.MS_NODEV|unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_RELATIME,
-		"",
+		"tmpfs",
+		target,
+		"tmpfs",
+		unix.MS_RELATIME,
+		fmt.Sprintf("size=%d,inode64", size),
 	)).To(g.Succeed(),
-		"cannot mount new sysfs instance on /sys")
+		"cannot mount new tmpfs on %s", target)
 }
