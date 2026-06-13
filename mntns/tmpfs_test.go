@@ -34,6 +34,13 @@ var _ = Describe("mounting new tmpfs", func() {
 	})
 
 	It("it mounts a fresh tmpfs", func() {
+		var origtmpfsstats unix.Statfs_t
+		Expect(unix.Statfs("/tmp", &origtmpfsstats)).To(Succeed())
+
+		// Create a new transient mount namespace, attach to it, and then mount
+		// a new tmpfs instance there. As this mount is inside the transient
+		// mount namespace this tmpfs is transient too and automatically removed
+		// when the mount namespace gets garbage collected.
 		mntnsfd, _ := NewTransient()
 		Execute(mntnsfd, func() {
 			Expect(func() {
@@ -42,7 +49,17 @@ var _ = Describe("mounting new tmpfs", func() {
 			var fsstats unix.Statfs_t
 			Expect(unix.Statfs("/tmp", &fsstats)).To(Succeed())
 			Expect(uint64(fsstats.Blocks) * uint64(fsstats.Bsize)).To(Equal(uint64(64 * units.KiB)))
+			Expect(uint64(fsstats.Blocks) * uint64(fsstats.Bsize)).
+				NotTo(Equal(uint64(origtmpfsstats.Blocks) * uint64(origtmpfsstats.Bsize)))
 		})
+
+		// This test just ensures that the new tmpf was actually mounted inside
+		// a transient mount namespace and not in the test programs's mount
+		// namespace.
+		var fsstats unix.Statfs_t
+		Expect(unix.Statfs("/tmp", &fsstats)).To(Succeed())
+		Expect(uint64(fsstats.Blocks) * uint64(fsstats.Bsize)).
+			To(Equal(uint64(origtmpfsstats.Blocks) * uint64(origtmpfsstats.Bsize)))
 	})
 
 })
