@@ -34,12 +34,11 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-// Client connects to exactly one spacer service instance, which might be
-// in-process or a separate process.
+// Client connects to exactly one spacer service instance, where this service
+// might be in-process or a separate process. These spacer services then provide
+// creating new namespaces.
 //
-// # Important
-//
-// Client cannot(!) be used concurrently.
+// ⚠ Please note that Client methods cannot(!) be used concurrently.
 type Client struct {
 	conn   *uds.Conn
 	enc    *gobmsg.Encoder
@@ -76,7 +75,14 @@ func spacerServicePath() string {
 // service instance will terminate either when the passed context gets cancelled
 // or when the Close method of the returned client object is called.
 //
-// Make sure to call [gexec.CleanupBuildArtifacts] in your AfterSuite.
+// Make sure to call [gexec.CleanupBuildArtifacts] in your [gi.AfterSuite].
+//
+// Use [Client.NewTransientUser], [Client.NewTransientPID], and
+// [Client.NewTransientUserPID] to create child user and PID namespaces inside
+// the user and PID namespaces the particular [Client] is associated with. The
+// Client returned by New is associated with the caller's user and PID
+// namespaces. These three methods return a new “sub” client associated with the
+// newly created user and/or PID namespaces.
 func New(ctx context.Context, opts ...Option) *Client {
 	gi.GinkgoHelper()
 
@@ -117,13 +123,72 @@ func (c *Client) Close() {
 // PID returns the PID of the connected spacer service instance, or 0 if the
 // service instance is in the calling process' memory.
 //
-// A Client returned by [New] will always report the PID as 0, as opposed to
-// a Client returned by [Client.Subspace].
+// A Client returned by [New] will always report the PID as 0, as opposed to a
+// Client returned by [Client.NewTransientUser], [Client.NewTransientPID],
+// [Client.NewTransientUserPID], or [Client.Subspace].
 func (c *Client) PID() int {
 	return c.pid
 }
 
-// Subspace returns a new client as well as new user and/or PID child
+// NewTransientUser returns a new [Client] as well as a new user namespace. The
+// user namespace is a child of the user namespace this client is associated
+// with.
+//
+// Calling NewTransientUser on an “initial” client returned by [New] will create
+// the user child namespace inside the callers user namespace. In contrast,
+// calling NewTransientUser on a client that was obtained by [Client.Subspace],
+// [Client.NewTransientUser], or similar calls will create the user child
+// namespace inside the user namespace of the service referenced by that client.
+//
+// NewTransientUser also schedules a Ginkgo [gi.DeferCleanup] to automatically
+// close the open file descriptors of the namespaces returned when the spec
+// ends, where Subspace was called. Callers thus must not close the returned
+// file descriptors themselves. Callers are free to call [unix.Dup] any
+// namespace-referencing file descriptor to break out of this fd lifecycle by
+// creating an independently managed file descriptor.
+//
+// In order to allow creating any further namespaces inside the returned child
+// user namespace the calling user with his group get mapped to the root user
+// and group.
+func (c *Client) NewTransientUser() (*Client, int) {
+	clnt, subspc := c.Subspace(true, false)
+	return clnt, subspc.User
+}
+
+// NewTransientPID returns a new [Client] as well as a new PID namespace. The
+// PID namespace is a child of the PID namespace this client is associated with.
+//
+// Calling NewTransientPID on an “initial” client returned by [New] will create
+// the PID child namespace inside the callers PID namespace. In contrast,
+// calling NewTransientPID on a client that was obtained by [Client.Subspace],
+// [Client.NewTransientUser], or similar calls will create the PID child
+// namespace inside the PID of the service referenced by that client.
+//
+// NewTransientUser also schedules a Ginkgo [gi.DeferCleanup] to automatically
+// close the open file descriptors of the namespaces returned when the spec
+// ends, where Subspace was called. Callers thus must not close the returned
+// file descriptors themselves. Callers are free to call [unix.Dup] any
+// namespace-referencing file descriptor to break out of this fd lifecycle by
+// creating an independently managed file descriptor.
+func (c *Client) NewTransientPID() (*Client, int) {
+	clnt, subspc := c.Subspace(false, true)
+	return clnt, subspc.PID
+}
+
+// NewTransientUserPID returns a new [Client] together with new user and PID
+// namespaces. The user and PID namespaces are a children of their respective
+// namespaces the client is associated with. The child user namespace is created
+// first, then the child PID namespace, making the child PID namespace owned by
+// the child user namespace.
+//
+// For more details, please refer to [Client.NewTransientUser] and
+// [Client.NewTransientPID] instead.
+func (c *Client) NewTransientUserPID() (clnt *Client, usernsfd int, pidnsfd int) {
+	clnt, subspc := c.Subspace(true, true)
+	return clnt, subspc.User, subspc.PID
+}
+
+// Subspace returns a new [Client] as well as new user and/or PID child
 // namespaces. The user and/or PID namespaces are children of the connected
 // service's user and PID namespaces.
 //
@@ -133,20 +198,23 @@ func (c *Client) PID() int {
 // call will create the user and/or PID child namespaces inside the user/PID
 // namespaces of the service referenced by that client.
 //
-// Subspace also schedules a DeferCleanup to automatically close the open file
-// descriptors of the namespaces returned when the current node ends, where
-// Subspace was called. Callers thus must not close the returned file
+// Subspace also schedules a Ginkgo [gi.DeferCleanup] to automatically close the
+// open file descriptors of the namespaces returned when the current node ends,
+// where Subspace was called. Callers thus must not close the returned file
 // descriptors themselves. Callers are free to [unix.Dup] any
 // namespace-referencing file descriptor to break out of this fd lifecycle.
 //
 // In order to allow creating any further namespaces inside a “subspace” the
 // calling user with his group get mapped to the root user and group.
+//
+// Deprecated: use [Client.NewTransientUser], [Client.NewTransientPID], and
+// [Client.NewTransientUserPID] instead.
 func (c *Client) Subspace(user, pid bool) (*Client, api.Subspaces) {
 	gi.GinkgoHelper()
 
 	resp := do[*api.SubspaceResponse](c, api.SubspaceRequest{
-		Spaces: uint64(namespaces(0).ifrequested(user, unix.CLONE_NEWUSER).
-			ifrequested(pid, unix.CLONE_NEWPID)),
+		Spaces: uint64(NamespacesSet.addCond(user, unix.CLONE_NEWUSER).
+			addCond(pid, unix.CLONE_NEWPID)),
 	}, "subspace")
 	defer func() { _ = unix.Close(resp.PIDFd) }()
 
@@ -237,12 +305,12 @@ func (c *Client) Rooms(cgroup, ipc, mnt, net, time, uts bool) api.RoomsResponse 
 	gi.GinkgoHelper()
 
 	resp := do[*api.RoomsResponse](c, api.RoomsRequest{
-		Spaces: uint64(namespaces(0).ifrequested(cgroup, unix.CLONE_NEWCGROUP).
-			ifrequested(ipc, unix.CLONE_NEWIPC).
-			ifrequested(mnt, unix.CLONE_NEWNS).
-			ifrequested(net, unix.CLONE_NEWNET).
-			ifrequested(time, unix.CLONE_NEWTIME).
-			ifrequested(uts, unix.CLONE_NEWUTS)),
+		Spaces: uint64(NamespacesSet.addCond(cgroup, unix.CLONE_NEWCGROUP).
+			addCond(ipc, unix.CLONE_NEWIPC).
+			addCond(mnt, unix.CLONE_NEWNS).
+			addCond(net, unix.CLONE_NEWNET).
+			addCond(time, unix.CLONE_NEWTIME).
+			addCond(uts, unix.CLONE_NEWUTS)),
 	}, "rooms")
 
 	gi.DeferCleanup(func(cgroupfd, ipcfd, mntfd, netfd, timefd, utsfd int) {
@@ -269,13 +337,22 @@ func (c *Client) Rooms(cgroup, ipc, mnt, net, time, uts bool) api.RoomsResponse 
 	return *resp
 }
 
-type namespaces uint64
+// namespacesFlags represents a bit set of unix.CLONE_NEWxxx namespace type
+// flags.
+type namespacesFlags uint64
 
-func (n namespaces) ifrequested(b bool, flag uint64) namespaces {
-	if !b {
+// NamespacesSet defines an empty set of namespaces to start a chain of
+// [namespacesFlags.addFlagCond].
+const NamespacesSet = namespacesFlags(0)
+
+// addCond adds the specified namespace type flag (unix.CLONE_NEWxxx) to the
+// returned namespacesFlags only if cond is true; otherwise, it passes the
+// namespacesFlags on unmodified.
+func (n namespacesFlags) addCond(cond bool, flag uint64) namespacesFlags {
+	if !cond {
 		return n
 	}
-	return n | namespaces(flag)
+	return n | namespacesFlags(flag)
 }
 
 // do the passed API request, returning a non-failure API response; or otherwise

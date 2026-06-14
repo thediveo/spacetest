@@ -87,16 +87,16 @@ import (
 
 var _ = Describe("...", func() {
 
-    It("tests something inside transient user and PID namespaces", func(ctx context.Context) {
-        spcclnt := spacer.New(ctx)
+    It("tests something inside transient new child user and PID namespaces", func(ctx context.Context) {
+        clnt := spacer.New(ctx)
 		DeferCleanup(func() {
-			spcclnt.Close()
+			clnt.Close()
 		})
 
-		subclnt, subspc := spcclnt.Subspace(true, true)
+		subclnt, childusernsfd, childpidnsfd := clnt.NewTransientUserPID()
 		DeferCleanup(func() {
             // Note, you don't need to close the returned namespace fd(s), as these will be
-            // automatically closed using their own DeferCleanup scheduled by Subspace().
+            // automatically closed using their own DeferCleanup scheduled by NewTransientUserPID().
 			subclnt.Close()
 		})
         // ...

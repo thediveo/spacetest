@@ -51,19 +51,19 @@ var _ = Describe("spacer client", func() {
 		It("starts a spacer and creates a subspace, then makes room inside it", func(ctx context.Context) {
 			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
-			cl := New(ctx, WithOut(w), WithErr(w))
-			defer cl.Close()
+			clnt := New(ctx, WithOut(w), WithErr(w))
+			defer clnt.Close()
 
-			subcl, spc := cl.Subspace(true, true)
+			subcl, usernsfd, pidnsfd := clnt.NewTransientUserPID()
+			Expect(subcl).NotTo(BeNil())
 			Expect(subcl.PID()).NotTo(BeZero())
 			Expect(subcl.PID()).NotTo(Equal(os.Getpid()))
 			Expect(string(Successful(
 				os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", subcl.PID()))))).
 				To(HaveSuffix("/spacer-service\x00"))
 
-			Expect(subcl).NotTo(BeNil())
-			Expect(spc.PID).To(BeNumerically(">", 0))
-			Expect(spc.User).To(BeNumerically(">", 0))
+			Expect(pidnsfd).To(BeNumerically(">", 0))
+			Expect(usernsfd).To(BeNumerically(">", 0))
 
 			nsfd := subcl.NewTransient(unix.CLONE_NEWNET)
 			Expect(nsfd).To(BeNumerically(">", 0))
@@ -82,10 +82,10 @@ var _ = Describe("spacer client", func() {
 		It("starts a spacer and creates flat namespaces", func(ctx context.Context) {
 			var out safe.Buffer
 			w := io.MultiWriter(&out, GinkgoWriter)
-			cl := New(ctx, WithOut(w), WithErr(w))
-			defer cl.Close()
+			clnt := New(ctx, WithOut(w), WithErr(w))
+			defer clnt.Close()
 
-			rooms := cl.Rooms(true, true, true, true, true, true)
+			rooms := clnt.Rooms(true, true, true, true, true, true)
 			Eventually(out.String).Within(2 * time.Second).To(
 				MatchRegexp(`"serving request" .* service=\*api.RoomsRequest`))
 
@@ -96,7 +96,7 @@ var _ = Describe("spacer client", func() {
 			Expect(rooms.Time).To(BeNumerically(">", 0))
 			Expect(rooms.UTS).To(BeNumerically(">", 0))
 
-			subcl, _ := cl.Subspace(true, true)
+			subcl, _, _ := clnt.NewTransientUserPID()
 
 			rooms = subcl.Rooms(true, true, true, true, true, true)
 
@@ -128,12 +128,12 @@ var _ = Describe("spacer client", func() {
 	})
 
 	It("augments namespace clone flags", func() {
-		flags := namespaces(0).ifrequested(true, unix.CLONE_NEWNET)
-		Expect(flags).To(Equal(namespaces(unix.CLONE_NEWNET)))
-		flags = flags.ifrequested(false, unix.CLONE_NEWUTS)
-		Expect(flags).To(Equal(namespaces(unix.CLONE_NEWNET)))
-		flags = flags.ifrequested(true, unix.CLONE_NEWIPC)
-		Expect(flags).To(Equal(namespaces(unix.CLONE_NEWNET | unix.CLONE_NEWIPC)))
+		flags := namespacesFlags(0).addCond(true, unix.CLONE_NEWNET)
+		Expect(flags).To(Equal(namespacesFlags(unix.CLONE_NEWNET)))
+		flags = flags.addCond(false, unix.CLONE_NEWUTS)
+		Expect(flags).To(Equal(namespacesFlags(unix.CLONE_NEWNET)))
+		flags = flags.addCond(true, unix.CLONE_NEWIPC)
+		Expect(flags).To(Equal(namespacesFlags(unix.CLONE_NEWNET | unix.CLONE_NEWIPC)))
 	})
 
 	// The following unit test sets up a network namespace in a child user
@@ -160,11 +160,11 @@ var _ = Describe("spacer client", func() {
 			})
 
 			By("creating a child user namespace")
-			subclnt, spc := clnt.Subspace(true, false)
+			var subclnt *Client
+			subclnt, childusernsfd = clnt.NewTransientUser()
 			DeferCleanup(func() {
 				subclnt.Close()
 			})
-			childusernsfd = spc.User
 
 			By("creating a network namespace belonging to the child user namespace")
 			netnsfd = subclnt.NewTransient(unix.CLONE_NEWNET)
@@ -195,8 +195,8 @@ var _ = Describe("spacer client", func() {
 		clnt := New(ctx, WithOut(GinkgoWriter), WithErr(GinkgoWriter))
 		defer clnt.Close()
 		Expect(clnt.PID()).To(BeZero())
-		sub1, _ := clnt.Subspace(true, true)
-		sub2, _ := sub1.Subspace(false, true)
+		sub1, _ := clnt.NewTransientUser()
+		sub2, _ := sub1.NewTransientPID()
 		Expect(sub1.PID()).To(And(
 			Not(BeZero()),
 			Not(Equal(os.Getpid())),
