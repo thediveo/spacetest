@@ -117,6 +117,19 @@ func EnterTransient(typ int) func() {
 func NewTransient(typ int) int {
 	GinkgoHelper()
 
+	newNamespace := NewUnmanagedTransient(typ)
+	DeferCleanup(func() {
+		Expect(unix.Close(newNamespace)).To(Succeed(),
+			"cannot close transient namespace fd reference")
+	})
+	return newNamespace
+}
+
+// NewUnmanagedTransient is like [NewTransient] except that the caller is
+// responsible to correctly close the returned namespace fd.
+func NewUnmanagedTransient(typ int) int {
+	GinkgoHelper()
+
 	name := Name(typ)
 	Expect(typ).To(BeElementOf([]int{
 		unix.CLONE_NEWCGROUP,
@@ -149,8 +162,6 @@ func NewTransient(typ int) int {
 		"cannot determine new %s namespace from procfs", name)
 	Expect(unix.Setns(callersNamespace, typ)).To(Succeed(),
 		"cannot switch back into original %s namespace", name)
-	DeferCleanup(func() { _ = unix.Close(newNamespace) })
-
 	runtime.UnlockOSThread()
 	return newNamespace
 }

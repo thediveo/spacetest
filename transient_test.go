@@ -17,12 +17,14 @@ package spacetest
 import (
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/thediveo/caps"
 	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/thediveo/fdooze"
 	. "github.com/thediveo/success"
 )
 
@@ -32,6 +34,12 @@ var _ = Describe("transient namespaces", Ordered, func() {
 		if os.Getuid() != 0 {
 			Skip("needs root")
 		}
+	})
+
+	BeforeEach(func() {
+		goodfds := Filedescriptors()
+		Eventually(Filedescriptors).Within(2 * time.Second).ProbeEvery(100 * time.Millisecond).
+			ShouldNot(HaveLeakedFds(goodfds))
 	})
 
 	It("cannot return to its original time namespace when having multiple threads", func() {
@@ -129,6 +137,13 @@ var _ = Describe("transient namespaces", Ordered, func() {
 			Entry("net", unix.CLONE_NEWNET),
 			Entry("uts", unix.CLONE_NEWUTS),
 		)
+
+		It("properly returns an unmanaged fd", func() {
+			nsfd := NewUnmanagedTransient(unix.CLONE_NEWNET)
+			Expect(unix.Close(nsfd)).To(Succeed())
+			// note: any unwanted defered namespace fd cleanup handler asserts
+			// that unix.Close succeeds.
+		})
 
 	})
 
