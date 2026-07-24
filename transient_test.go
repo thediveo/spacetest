@@ -19,7 +19,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/thediveo/caps"
+	"github.com/thediveo/caps/v2"
 	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -102,7 +102,7 @@ var _ = Describe("transient namespaces", Ordered, func() {
 			runtime.LockOSThread() // this thread will be tainted and must be dropped at the end.
 
 			cleanup := EnterTransient(unix.CLONE_NEWNET)
-			Expect(caps.SetForThisTask(caps.TaskCapabilities{})).To(Succeed())
+			Expect(caps.TaskCapabilities{}.ApplyToCurrentTask()).Error().NotTo(HaveOccurred())
 			Expect(cleanup).To(PanicWith(
 				ContainSubstring("cannot restore original net namespace")))
 		})

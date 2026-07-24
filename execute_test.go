@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/thediveo/caps"
+	"github.com/thediveo/caps/v2"
 	"golang.org/x/sys/unix"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -149,7 +149,7 @@ var _ = Describe("doing things in different namespaces", Ordered, func() {
 			Expect(InterceptGomegaFailure(func() {
 				goInAndOut(func() {
 					count++
-					Expect(caps.SetForThisTask(caps.TaskCapabilities{})).To(Succeed())
+					Expect(caps.TaskCapabilities{}.ApplyToCurrentTask()).Error().NotTo(HaveOccurred())
 				}, netns)
 			})).To(MatchError(ContainSubstring("cannot restore net namespace")))
 			Expect(count).To(Equal(1))
